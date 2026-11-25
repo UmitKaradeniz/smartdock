@@ -27,10 +27,10 @@ $utf16 = [Text.Encoding]::Unicode.GetString($bytes)
 $hits = foreach ($n in $needles) {
   if ($ascii.IndexOf($n, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or $utf16.IndexOf($n, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $n }
 }
-if ($hits) { throw "Kisisel bilgi bulundu: $($hits -join ', ')" }
+if ($hits) { throw "Personal information found in the binary: $($hits -join ', ')" }
 
 $out = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $out | Out-Null
 Copy-Item $setup.FullName $out -Force
-Write-Host "Temiz. Kurulum dosyasi: $(Join-Path $out $setup.Name)"
-Write-Host 'Ayarlar her PC''de kullanicinin kendi AppData klasorunde olusur; bu dosyada senin ayarlarin yok.'
+Write-Host "Clean. Installer: $(Join-Path $out $setup.Name)"
+Write-Host 'Settings are created in each user''s own AppData folder; this installer contains none of yours.'

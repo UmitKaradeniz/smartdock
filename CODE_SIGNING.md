@@ -15,4 +15,4 @@ Every signing request is approved by hand in SignPath. All accounts with access 
 
 ## Privacy
 
-smartdock sends no information to other networked systems unless the user turns on a feature that needs it. The features that make network requests, and where they go, are listed under "Gizlilik ve ağ erişimi" in the [README](README.md). There is no account, no server and no telemetry.
+smartdock sends no information to other networked systems unless the user turns on a feature that needs it. The features that make network requests, and where they go, are listed under [Privacy and network access](README.md#privacy-and-network-access) in the README. There is no account, no server and no telemetry.

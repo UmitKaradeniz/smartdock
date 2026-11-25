@@ -1,4 +1,9 @@
 <p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/Language-English-30363d?style=for-the-badge" alt="English"></a>
+  <a href="README.tr.md"><img src="https://img.shields.io/badge/Dil-T%C3%BCrk%C3%A7e-4f8cff?style=for-the-badge" alt="Türkçe"></a>
+</p>
+
+<p align="center">
   <img src="docs/hero.jpg" alt="smartdock: Windows 10/11 için görev çubuğunun yerine geçen widget'lı dock" width="100%">
 </p>
 
@@ -13,13 +18,17 @@
   <a href="../../releases/latest"><b>İndir</b></a> · <a href="#kaynaktan-derleme">Kaynaktan derle</a>
 </p>
 
-<p align="center"><a href="README.md">English</a> · <b>Türkçe</b></p>
-
 <p align="center">
   <img src="docs/demo.gif" alt="smartdock demo" width="100%">
 </p>
 
 Tauri (Rust) ve sade HTML/CSS/JS ile yazıldı. Hesap yok, sunucu yok, telemetri yok.
+
+## Widget'lar
+
+Her widget eklenip çıkarılabilir, sıralanabilir ve boyutlandırılabilir.
+
+<img src="docs/widgets.png" alt="Tüm smartdock widget'ları: temel, saat ve takvim, yapay zekâ, sistem, müzik ve hava, üretkenlik, finans ve geliştirici" width="100%">
 
 ## Paneller
 
@@ -48,7 +57,7 @@ Ayarlar `%APPDATA%\app.smartdock.dock\` klasöründe tutulur. Kaldırınca bu kl
 - **Sağ tık → Boyutlandır...**: Her widget'ın ölçeğini ve genişliğini ayrı ayrı ayarlar.
 - **Sağ tık → Widget'lar...**: Widget ekler/çıkarır. Düzenleme modunda widget'lar sürüklenerek sıralanır.
 - **Sağ alt köşe**: Masaüstünü gösterir / pencereleri geri getirir.
-- **Ayarlar**: Stil, konum, otomatik gizleme, görev çubuğunu gizleme ve diğerleri.
+- **Dişli düğmesi** (dock'un sonunda): Ayarlar (stil, konum, otomatik gizleme, görev çubuğunu gizleme ve diğerleri). Başka yere tıklayınca kapanır.
 
 ## Kaynaktan derleme
 
@@ -81,7 +90,7 @@ Uygulama yalnız kendi bilgisayarında çalışır. Dışarıya sadece şu istek
 | GitHub katkı grafiği | github-contributions-api.jogruber.de | GitHub widget'ı açıksa |
 | Yapay zekâ cevabı (arama kutusu) | text.pollinations.ai | Ayarlar'da yapay zekâ açıksa, sadece arama kutusuna yazılan soru gönderilir |
 | Güncelleme denetimi | api.github.com | Ayarlar'da güncelleme denetimi açıksa |
-| Claude kullanım limiti | Ağ isteği yok | Claude masaüstünün kaydı ve (bağlanırsa) Claude Code'un durum satırı yerelde okunur; giriş anahtarı kullanılmaz |
+| Claude kullanım limiti | Anthropic, Claude Code üzerinden | Önce yerel kayıtlar okunur. Eskiyse resmî `claude -p /usage` komutu çalıştırılır (ücretsiz, modele istek gitmez); dock giriş anahtarını okumaz |
 | ChatGPT/Codex kullanım limiti | chatgpt.com | Codex widget'ı eklenmişse, o bilgisayardaki Codex oturumuyla |
 
 ## Dil

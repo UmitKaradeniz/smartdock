@@ -1,4 +1,9 @@
 <p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/Language-English-4f8cff?style=for-the-badge" alt="English"></a>
+  <a href="README.tr.md"><img src="https://img.shields.io/badge/Dil-T%C3%BCrk%C3%A7e-30363d?style=for-the-badge" alt="Türkçe"></a>
+</p>
+
+<p align="center">
   <img src="docs/hero.jpg" alt="smartdock: A widget dock for Windows 10/11 that replaces the taskbar" width="100%">
 </p>
 
@@ -12,8 +17,6 @@
 <p align="center">
   <a href="../../releases/latest"><b>Download</b></a> · <a href="#build-from-source">Build from source</a>
 </p>
-
-<p align="center"><b>English</b> · <a href="README.tr.md">Türkçe</a></p>
 
 <p align="center">
   <img src="docs/demo.gif" alt="smartdock demo" width="100%">
@@ -29,6 +32,12 @@
 | **Smart search** | `Alt+Space` for apps, files, math, currency conversion and optional AI answers |
 | **Five styles** | Midnight, Liquid Glass, iOS, Black and White, with your own accent color |
 | **Private** | No account, no server, no telemetry |
+
+## Widgets
+
+Every widget can be added, removed, reordered and resized.
+
+<img src="docs/widgets.png" alt="All smartdock widgets: core, clock and calendar, AI, system, music and weather, productivity, finance and developer" width="100%">
 
 ## Panels
 
@@ -59,7 +68,7 @@ Settings live in `%APPDATA%\app.smartdock.dock\`. Delete that folder after unins
 | Right-click → **Resize...** | Sets each widget's scale and width |
 | Right-click → **Widgets...** | Adds or removes widgets; drag to reorder in edit mode |
 | Bottom-right corner | Shows the desktop / restores windows |
-| **Settings** | Style, position, auto-hide, hiding the taskbar and more |
+| **Gear button** (end of the dock) | Settings: style, position, auto-hide, hiding the taskbar and more. Click elsewhere to close |
 
 The UI follows your Windows language (English or Turkish); change it under **Settings › Appearance › Language**.
 
@@ -96,7 +105,7 @@ The app runs on your own computer. These are its only outgoing requests:
 | GitHub contribution graph | github-contributions-api.jogruber.de | GitHub widget is on |
 | AI answer (search box) | text.pollinations.ai | AI enabled in Settings; only the question you type is sent |
 | Update check | api.github.com | Update check enabled in Settings |
-| Claude usage limit | No request | Read locally from the Claude desktop record and (if linked) the Claude Code status line; no login key is used |
+| Claude usage limit | Anthropic, through Claude Code | Local records are read first. When they are old, the official `claude -p /usage` command is run (free, no model call); the dock never reads your login key |
 | ChatGPT/Codex usage limit | chatgpt.com | Codex widget added, using the Codex session on that computer |
 
 ## Releasing
