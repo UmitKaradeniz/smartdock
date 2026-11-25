@@ -312,13 +312,13 @@ export function openSearch(anchor, preset = '') {
       for (const w of Object.values(W).filter((w) => q.length > 2 && (w.name.toLowerCase().includes(q.toLowerCase()) || w.id.includes(q.toLowerCase()))).slice(0, 3)) {
         if (w.id === 'weather' && out.some((o) => o.t1 === $t('Hava Durumu'))) continue;
         const on = cfg.items.includes(w.id);
-        out.push({ sect: $t('Widget\'lar'), t1: w.name, t2: on ? $t('Dock\'ta · kaldırmak için Enter') : w.desc, ic: w.icon, hint: on ? $t('Kaldır') : $t('Ekle'), run: () => { set('items', on ? cfg.items.filter((x) => x !== w.id) : [...cfg.items, w.id]); done = on ? `${w.name} ${$t('kaldırıldı')}` : `${w.name} dock'a eklendi`; blip('ok'); update(); } });
+        out.push({ sect: $t('Widget\'lar'), t1: w.name, t2: on ? $t('Dock\'ta · kaldırmak için Enter') : w.desc, ic: w.icon, hint: on ? $t('Kaldır') : $t('Ekle'), run: () => { set('items', on ? cfg.items.filter((x) => x !== w.id) : [...cfg.items, w.id]); done = on ? `${w.name} ${$t('kaldırıldı')}` : `${w.name} ${$t("dock'a eklendi")}`; blip('ok'); update(); } });
       }
       const askRow = cfg.ai ? { sect: $t('Yapay zeka'), t1: `${$t('Anla')}: “${q}”`, t2: $t('Kendi kelimelerinle, her dilde · ücretsiz'), ic: 'spark', hint: $t('Sor'), run: () => ai(q) } : null;
       const webRow = { sect: $t('Web'), t1: `${$t('Web\'de ara')}: “${q}”`, t2: $t('Ctrl+Enter her yerden'), ic: 'web', hint: $t('Ara'), run: () => { exec({ do: 'web', value: q }); remember(q, $t('Web araması')); close(); } };
       const answerEl = () => {
         if (!answer) return null;
-        const el = h('div', { class: 'answer', html: `<div class="ico" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--panel-2)">${answer.wx ? wxIcon(answer.wx, 30) : icon(answer.ic || 'math', 18)}</div><div class="grow stack"><span class="a">${esc(answer.a)}</span><span class="q">${esc(answer.q)}</span></div>${answer.copy ? '<span class="hint mut">Enter kopyalar</span>' : ''}` });
+        const el = h('div', { class: 'answer', html: `<div class="ico" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--panel-2)">${answer.wx ? wxIcon(answer.wx, 30) : icon(answer.ic || 'math', 18)}</div><div class="grow stack"><span class="a">${esc(answer.a)}</span><span class="q">${esc(answer.q)}</span></div>${answer.copy ? `<span class="hint mut">${$t('Enter kopyalar')}</span>` : ''}` });
         return el;
       };
       const finish = () => {

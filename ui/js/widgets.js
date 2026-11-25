@@ -370,7 +370,7 @@ def('ailimits', 'AI Limitleri', 'ai', 'spark', $t('İki yapay zeka planın tek t
   const got = {};
   const draw = () => {
     const rows = SV.filter(([sv]) => got[sv]?.session).slice(0, 2);
-    if (!rows.length) { el.innerHTML = `${icon('spark', 16)}<div class="stack"><span class="lbl">AI limitleri</span><span class="sub">${$t('Claude Code ya da Codex ile giriş yap')}</span></div>`; return; }
+    if (!rows.length) { el.innerHTML = `${icon('spark', 16)}<div class="stack"><span class="lbl">${$t('AI limitleri')}</span><span class="sub">${$t('Claude Code ya da Codex ile giriş yap')}</span></div>`; return; }
     el.innerHTML = `<div class="ubars ai">${rows.map(([sv, nm, mk]) => { const w = got[sv].session; return `<span class="mk">${MARK[mk]}</span><span class="k">${nm}</span><div class="${barCls(w.pct)}"><i style="width:${w.pct}%"></i></div><span class="r">${w.reset ? until(w.reset) : ''}</span><span class="v">${w.pct}%</span>`; }).join('')}</div>`;
   };
   const offs = SV.map(([sv]) => use(sv, (u) => { got[sv] = u; draw(); }));
@@ -403,7 +403,7 @@ async function openTray(anchor) {
   const cols = Math.min(6, Math.max(3, list.length)), rows = Math.max(1, Math.ceil(list.length / cols));
   openPanel('tray', anchor, { w: cols * 40 + 20, h: rows * 40 + 20, cls: 'tray' }, (root, close) => {
     const draw = (items) => {
-      root.innerHTML = items.length ? '' : '<span class="sub" style="padding:10px">Arka planda simge yok</span>';
+      root.innerHTML = items.length ? '' : `<span class="sub" style="padding:10px">${$t('Arka planda simge yok')}</span>`;
       for (const it of items) {
         const b = h('button', { class: 'tri', title: it.tip, html: `<img src="${SD}/tray?id=${it.id}&h=${it.img}" alt="">` });
         b.onclick = () => { blip(); close(); invoke('tray_click', { id: it.id, right: false }); };
@@ -752,7 +752,7 @@ function openTemp(anchor) {
       lb.style.display = real || !t.lhm || t.task ? 'none' : '';
       root.querySelector('.c').textContent = t.hot == null ? '–' : `${Math.round(t.hot)}°C`;
       const tag = root.querySelector('.st'); tag.textContent = t.hot == null ? $t('Sensör yok') : lbl; tag.className = `tag st ${cls}`;
-      root.querySelector('.tchart').innerHTML = t.hot == null ? '<div class="empty"><b>Bu bilgisayar ısı sensörü paylaşmıyor</b><span class="sub">Masaüstü anakartları çoğu zaman Windows’a ısı bölgesi açmaz.</span></div>' : line(t.hist);
+      root.querySelector('.tchart').innerHTML = t.hot == null ? `<div class="empty"><b>${$t('Bu bilgisayar ısı sensörü paylaşmıyor')}</b><span class="sub">${$t('Masaüstü anakartları çoğu zaman Windows’a ısı bölgesi açmaz.')}</span></div>` : line(t.hist);
       root.querySelector('.sens').innerHTML = t.zones.map((z, i) => row(t.source === 'lhm' ? esc(z.name) : `${$t('Bölge')} ${i + 1}`, `${Math.round(z.c)}°`, Math.min(100, z.c), `var(--${tState(z.c)[1]})`)).join('') || '<span class="sub">Yok</span>';
     });
     const b = use('stats', (s) => {
@@ -865,10 +865,10 @@ function openWeather(anchor) {
     const c = w.current;
     const i0 = Math.max(0, w.hourly.time.findIndex((t) => new Date(t) > new Date()) - 1);
     const lo = Math.min(...w.daily.temperature_2m_min), hi = Math.max(...w.daily.temperature_2m_max);
-    root.innerHTML = `<div class="ph-head">${wxIcon(wxKind(c.weather_code, c.is_day), 42)}<div class="stack"><div class="title">${esc(w.city)}</div><span class="mut">${WX_TEXT[wxKind(c.weather_code, c.is_day)]} · hissedilen ${Math.round(c.apparent_temperature)}°</span></div><div class="grow"></div><span style="font:300 34px var(--font-d);letter-spacing:-1.5px">${Math.round(c.temperature_2m)}°</span></div>
+    root.innerHTML = `<div class="ph-head">${wxIcon(wxKind(c.weather_code, c.is_day), 42)}<div class="stack"><div class="title">${esc(w.city)}</div><span class="mut">${WX_TEXT[wxKind(c.weather_code, c.is_day)]} · ${$t('hissedilen')} ${Math.round(c.apparent_temperature)}°</span></div><div class="grow"></div><span style="font:300 34px var(--font-d);letter-spacing:-1.5px">${Math.round(c.temperature_2m)}°</span></div>
     <div class="ph-body"><div class="row" style="justify-content:space-between;padding:6px 0 10px;border-bottom:1px solid var(--line)">${[...Array(6)].map((_, k) => { const i = i0 + k * 2; return `<div class="stack" style="align-items:center;gap:3px"><span class="sub mut">${k ? pad2(new Date(w.hourly.time[i]).getHours()) : $t('Şimdi')}</span>${wxIcon(wxKind(w.hourly.weather_code[i], w.hourly.is_day[i]), 22)}<b>${Math.round(w.hourly.temperature_2m[i])}°</b><span class="sub" style="color:#6cb7ff">${w.hourly.precipitation_probability[i] >= 20 ? w.hourly.precipitation_probability[i] + '%' : ''}</span></div>`; }).join('')}</div>
     <div class="list" style="margin-top:6px">${w.daily.time.map((t, i) => { const d = new Date(t); const a = ((w.daily.temperature_2m_min[i] - lo) / (hi - lo || 1)) * 100, b = ((w.daily.temperature_2m_max[i] - lo) / (hi - lo || 1)) * 100; return `<div class="li" style="min-height:34px;padding:4px 6px"><span style="width:44px;font-weight:600">${i ? DAYS[d.getDay()] : $t('Bugün')}</span>${wxIcon(wxKind(w.daily.weather_code[i]), 22)}<span class="mut" style="width:34px;text-align:right">${Math.round(w.daily.temperature_2m_min[i])}°</span><div class="grow" style="height:4px;border-radius:3px;background:var(--line);position:relative"><i style="position:absolute;left:${a}%;right:${100 - b}%;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,#6cb7ff,#ffc533)"></i></div><b style="width:30px;text-align:right">${Math.round(w.daily.temperature_2m_max[i])}°</b></div>`; }).join('')}</div>
-    <div class="row" style="margin-top:8px"><span class="sub mut">${$t('Nem')} ${c.relative_humidity_2m}${$t('% · Rüzgar')} ${Math.round(c.wind_speed_10m)} km/s</span><div class="grow"></div><button class="btn chg">${$t('Şehri değiştir')}</button></div></div>`;
+    <div class="row" style="margin-top:8px"><span class="sub mut">${$t('Nem')} ${c.relative_humidity_2m}${$t('% · Rüzgar')} ${Math.round(c.wind_speed_10m)} ${$t('km/s')}</span><div class="grow"></div><button class="btn chg">${$t('Şehri değiştir')}</button></div></div>`;
     root.querySelector('.chg').onclick = () => { closePanel(); import('./settings.js').then((s) => s.openSettings('weather')); };
   }));
 }
@@ -1008,14 +1008,14 @@ export function openCalendar(anchor) {
       const byDay = new Map();
       evs.forEach((e) => { const k = ymd(e.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(e); });
       const tk = ymd(new Date()), sk = ymd(calSel);
-      let grid = ['PZT', 'SAL', $t('ÇAR'), 'PER', 'CUM', 'CMT', 'PAZ'].map((d) => `<div class="dow">${d}</div>`).join('');
+      let grid = [1, 2, 3, 4, 5, 6, 0].map((d) => `<div class="dow">${DAYS[d].toLocaleUpperCase(LOCALE)}</div>`).join('');
       for (let i = 0; i < 42; i++) {
         const d = new Date(y, m, 1 - off + i), k = ymd(d), list = byDay.get(k) || [];
         grid += `<div class="day${d.getMonth() !== m ? ' other' : ''}${k === tk ? ' today' : ''}${k === sk ? ' sel' : ''}" data-k="${k}"><span class="num">${d.getDate()}</span><div class="dots">${list.slice(0, 6).map((e) => `<i style="background:${e.color}"></i>`).join('')}</div></div>`;
       }
       const dayEv = byDay.get(sk) || [];
       root.innerHTML = `<div class="cal"><div><div class="ph-head"><div style="color:var(--bad)">${icon('cal', 18)}</div><div class="title">${MONTHS[m]} ${y}</div><div class="grow"></div><button class="btn sync" title="${$t('Takvim aboneliklerini yenile')}">${icon('chart', 13)}${$t('Senkronize')}</button><button class="ibtn pv">${icon('chevl', 16)}</button><button class="btn td">${$t('Bugün')}</button><button class="ibtn nx">${icon('chev', 16)}</button></div><div class="grid">${grid}</div></div>
-        <div class="agenda"><div class="row"><b>${calSel.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b><div class="grow"></div><span class="sub mut">${dayEv.length} etkinlik</span></div><div class="scroll" style="flex:1;display:flex;flex-direction:column;gap:6px">${dayEv.map((e) => `<div class="ev"><i class="bar-v" style="background:${e.color}"></i><div class="grow"><div class="t1" style="font-size:11.5px;font-weight:600;white-space:normal">${esc(e.title)}</div><div class="sub mut">${e.allDay ? $t('Tüm gün') : e.start.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${esc(e.src || '')}</div></div>${e.id ? `<button class="ibtn del" data-id="${e.id}">${icon('close', 12)}</button>` : ''}</div>`).join('') || '<p class="mut" style="padding:8px 2px">Boş bir gün.</p>'}</div>
+        <div class="agenda"><div class="row"><b>${calSel.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b><div class="grow"></div><span class="sub mut">${dayEv.length} ${$t('etkinlik')}</span></div><div class="scroll" style="flex:1;display:flex;flex-direction:column;gap:6px">${dayEv.map((e) => `<div class="ev"><i class="bar-v" style="background:${e.color}"></i><div class="grow"><div class="t1" style="font-size:11.5px;font-weight:600;white-space:normal">${esc(e.title)}</div><div class="sub mut">${e.allDay ? $t('Tüm gün') : e.start.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${esc(e.src || '')}</div></div>${e.id ? `<button class="ibtn del" data-id="${e.id}">${icon('close', 12)}</button>` : ''}</div>`).join('') || '<p class="mut" style="padding:8px 2px">Boş bir gün.</p>'}</div>
         <div class="stack" style="gap:6px"><input class="nt" placeholder="${$t('Yeni etkinlik')}"><div class="row"><input class="tt" type="time" style="width:84px;padding:6px"><select class="rp" style="flex:1;min-width:0;padding:6px"><option value="none">${$t('Tekrar yok')}</option><option value="weekly">${$t('Her hafta')}</option><option value="monthly">${$t('Her ay')}</option><option value="yearly">${$t('Her yıl')}</option></select><button class="btn pri add">${$t('Ekle')}</button></div></div></div></div>`;
       root.querySelector('.pv').onclick = () => { calMonth.setMonth(m - 1); draw(); };
       root.querySelector('.nx').onclick = () => { calMonth.setMonth(m + 1); draw(); };

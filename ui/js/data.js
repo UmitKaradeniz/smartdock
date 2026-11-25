@@ -194,7 +194,7 @@ export function eventsBetween(from, to, icsList, ai) {
   for (const [name, u, color] of ai || []) {
     for (const k of ['session', 'weekly']) {
       const w = u?.[k];
-      if (w?.reset && w.reset >= from && w.reset < to) out.push({ title: `${name} ${k === 'session' ? 'oturum' : $t('haftalık')} limiti yenilenir`, start: w.reset, color, src: name });
+      if (w?.reset && w.reset >= from && w.reset < to) out.push({ title: `${name} ${k === 'session' ? $t('oturum limiti yenilenir') : $t('haftalık limiti yenilenir')}`, start: w.reset, color, src: name });
     }
   }
   return out.sort((a, b) => a.start - b.start);

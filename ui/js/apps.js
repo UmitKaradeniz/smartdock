@@ -34,7 +34,7 @@ const niceName = (w) => {
 export function pin(app) {
   if (cfg.pinned.some((p) => low(p.id) === low(app.id))) return;
   set('pinned', [...cfg.pinned, { id: app.id, name: app.name, target: app.target || '' }]);
-  toast(`${app.name} sabitlendi`);
+  toast(`${app.name} ${$t('sabitlendi')}`);
 }
 export function unpin(id) {
   set('pinned', cfg.pinned.filter((p) => low(p.id) !== low(id)));
@@ -157,7 +157,7 @@ export function mountApps(el) {
       const chain = [p && /\.exe$/i.test(p.target) && !/\\windowsapps\\/i.test(p.target) ? p.target : null, img, ws[0]?.aumid, ws[0]?.exe].filter(Boolean);
       const im = h('img', { src: iconUrl(chain.shift(), 64), alt: '', draggable: 'false' });
       im.onerror = () => { const n = chain.shift(); if (n) im.src = iconUrl(n, 64); else im.onerror = null; };
-      const tipTxt = ws.length === 1 ? ws[0].title.slice(0, 60) : ws.length > 1 ? `${name} · ${ws.length} pencere` : name;
+      const tipTxt = ws.length === 1 ? ws[0].title.slice(0, 60) : ws.length > 1 ? `${name} · ${ws.length} ${$t('pencere')}` : name;
       a.append(im, h('div', { class: 'tip' }, tipTxt));
       if (ws.length) a.append(h('div', { class: 'dot' }));
       if (ws.some((w) => w.hwnd === wins.fg)) markSeen(seenKeys(ws, p, name));
@@ -269,7 +269,7 @@ export function mountApps(el) {
         const pins = [...cfg.pinned];
         pins.splice(keys.slice(0, keys.indexOf(d.key)).filter((k) => k.startsWith('p:')).length, 0, np);
         set('pinned', pins);
-        toast(`${d.name} sabitlendi`);
+        toast(`${d.name} ${$t('sabitlendi')}`);
         return;
       }
     }

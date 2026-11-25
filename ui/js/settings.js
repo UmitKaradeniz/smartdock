@@ -170,7 +170,7 @@ export function openPicker() {
       const list = Object.values(widgets).filter((w) => (cat === 'all' || w.cat === cat) && (!term || (w.name + ' ' + w.desc).toLowerCase().includes(term)));
       root.querySelector('.ttl').textContent = term ? $t('Arama') : CATS.find((c) => c[0] === cat)[1];
       root.querySelector('.cnt').textContent = list.length;
-      root.querySelector('.ond').textContent = `${cfg.items.length} dock'ta`;
+      root.querySelector('.ond').textContent = `${cfg.items.length} ${$t("dock'ta")}`;
       gal.innerHTML = '';
       for (const [id, label, ic] of CATS) {
         if (id === 'all') continue;
@@ -187,7 +187,7 @@ export function openPicker() {
       set('items', on ? [...cfg.items, w.id] : cfg.items.filter((x) => x !== w.id));
       c.classList.toggle('on', on);
       c.querySelector('.mark').innerHTML = icon(on ? 'check' : 'plus', 12);
-      root.querySelector('.ond').textContent = `${cfg.items.length} dock'ta`;
+      root.querySelector('.ond').textContent = `${cfg.items.length} ${$t("dock'ta")}`;
     };
     for (const [id, l, ic] of CATS) side.append(h('div', { class: 'cat' + (id === cat ? ' on' : ''), onclick: (e) => { cat = id; side.querySelectorAll('.cat').forEach((x) => x.classList.toggle('on', x === e.currentTarget)); draw(); gal.scrollTop = 0; }, html: `${icon(ic, 15)}<span>${l}</span>` }));
     side.append(h('div', { class: 'grow' }), h('div', { class: 'cat', onclick: () => openSettings(), html: `${icon('gear', 15)}<span>${$t('Ayarlar')}</span>` }));

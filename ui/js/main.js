@@ -14,6 +14,7 @@ import { $t } from './i18n.js';
 const stage = document.getElementById('stage');
 // show-desktop sliver: screen corner, as tall as the dock band
 const peekEl = document.getElementById('peek');
+peekEl.title = $t('Masaüstünü göster');
 peekEl.onclick = () => { blip(); invoke('toggle_desktop'); };
 function placePeek() {
   peekEl.style.display = cfg.peek === false ? 'none' : '';
@@ -279,7 +280,7 @@ function openTune(tile) {
     const showZ = () => (zv.textContent = zr.value + '%');
     zr.oninput = () => { showZ(); put({ z: +zr.value === 100 ? 0 : +zr.value }); };
     showZ();
-    root.append(h('div', { class: 'ph-head' }, h('div', { class: 'title' }, `${widgets[id]?.name || id} boyutu`)));
+    root.append(h('div', { class: 'ph-head' }, h('div', { class: 'title' }, $t('{} boyutu').replace('{}', widgets[id]?.name || id))));
     const body = h('div', { class: 'ph-body tune' });
     body.append(h('div', { class: 'trow' }, h('span', {}, $t('Ölçek')), zr, zv));
     if (id !== 'apps') {

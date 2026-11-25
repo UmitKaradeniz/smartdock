@@ -12,6 +12,7 @@ const pick = () => {
 };
 export const LANG = pick();
 export const LOCALE = LANG === 'tr' ? 'tr-TR' : 'en-US';
+document.documentElement.lang = LANG;
 const dict = PACKS[LANG] || null;
 
 /** Translate a UI string; unknown strings come back unchanged. */
