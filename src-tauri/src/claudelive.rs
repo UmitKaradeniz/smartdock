@@ -216,8 +216,29 @@ pub fn set_link(on: bool) -> Result<Value, String> {
     if let Some(d) = path.parent() {
         let _ = std::fs::create_dir_all(d);
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&s).unwrap()).map_err(|e| e.to_string())?;
+    replace_file(&path, &serde_json::to_string_pretty(&s).unwrap()).map_err(|e| e.to_string())?;
     Ok(link_state())
+}
+
+/// Swaps in new contents in one step, so a crash or power cut cannot leave half a file; the
+/// previous version stays next to it as `<name>.smartdock-bak`.
+fn replace_file(path: &Path, text: &str) -> std::io::Result<()> {
+    // a linked settings file (dotfiles) keeps its link: the file it points to is replaced
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let named = |suffix: &str| {
+        let mut n = path.clone().into_os_string();
+        n.push(suffix);
+        PathBuf::from(n)
+    };
+    if path.exists() {
+        std::fs::copy(&path, named(".smartdock-bak"))?;
+    }
+    let tmp = named(".smartdock-tmp");
+    let mut f = std::fs::File::create(&tmp)?;
+    f.write_all(text.as_bytes())?;
+    f.sync_all()?;
+    drop(f);
+    std::fs::rename(&tmp, &path)
 }
 
 /// `smartdock.exe --statusline`: runs as Claude Code's status line command and exits.
@@ -295,6 +316,20 @@ fn run_prev(cmd: &str, input: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn replacing_settings_keeps_the_previous_version() {
+        let dir = std::env::temp_dir().join("smartdock_test_settings");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("settings.json");
+        replace_file(&p, "one").unwrap();
+        replace_file(&p, "two").unwrap();
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "two");
+        assert_eq!(std::fs::read_to_string(dir.join("settings.json.smartdock-bak")).unwrap(), "one");
+        assert!(!dir.join("settings.json.smartdock-tmp").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn only_a_free_local_reply_counts() {

@@ -29,7 +29,7 @@
 | **Replaces the taskbar** | Start button, pinned and running apps, magnification, unread badges, window previews |
 | **39 widgets** | Clocks and calendar, weather, system stats, quick settings, media, productivity, finance, GitHub |
 | **AI usage limits** | Usage limits for Claude, ChatGPT/Codex and Antigravity |
-| **Smart search** | `Alt+Space` for apps, files, math, currency conversion and optional AI answers |
+| **Smart search** | `Alt+Space` (changeable in Settings) for apps, files, math, currency conversion and optional AI answers |
 | **Five styles** | Midnight, Liquid Glass, iOS, Black and White, with your own accent color |
 | **Private** | No account, no server, no telemetry |
 
@@ -103,7 +103,7 @@ The app runs on your own computer. These are its only outgoing requests:
 | Crypto prices | coingecko.com | Crypto widget is on |
 | Exchange rates | open.er-api.com | Currency widget, or a conversion in search |
 | GitHub contribution graph | github-contributions-api.jogruber.de | GitHub widget is on |
-| AI answer (search box) | text.pollinations.ai | AI enabled in Settings; only the question you type is sent |
+| AI answer (search box) | text.pollinations.ai | AI enabled in Settings; only the question you type is sent, after a one-time notice |
 | Update check | api.github.com | Update check enabled in Settings |
 | Claude usage limit | Anthropic, through Claude Code | Local records are read first. When they are old, the official `claude -p /usage` command is run (free, no model call); the dock never reads your login key |
 | ChatGPT/Codex usage limit | chatgpt.com | Codex widget added, using the Codex session on that computer |

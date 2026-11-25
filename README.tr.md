@@ -88,7 +88,7 @@ Uygulama yalnız kendi bilgisayarında çalışır. Dışarıya sadece şu istek
 | Kripto fiyatları | coingecko.com | Kripto widget'ı açıksa |
 | Döviz kurları | open.er-api.com | Döviz widget'ı veya arama kutusunda çeviri yapılınca |
 | GitHub katkı grafiği | github-contributions-api.jogruber.de | GitHub widget'ı açıksa |
-| Yapay zekâ cevabı (arama kutusu) | text.pollinations.ai | Ayarlar'da yapay zekâ açıksa, sadece arama kutusuna yazılan soru gönderilir |
+| Yapay zekâ cevabı (arama kutusu) | text.pollinations.ai | Ayarlar'da yapay zekâ açıksa, sadece arama kutusuna yazılan soru, bir kerelik bilgilendirmeden sonra gönderilir |
 | Güncelleme denetimi | api.github.com | Ayarlar'da güncelleme denetimi açıksa |
 | Claude kullanım limiti | Anthropic, Claude Code üzerinden | Önce yerel kayıtlar okunur. Eskiyse resmî `claude -p /usage` komutu çalıştırılır (ücretsiz, modele istek gitmez); dock giriş anahtarını okumaz |
 | ChatGPT/Codex kullanım limiti | chatgpt.com | Codex widget'ı eklenmişse, o bilgisayardaki Codex oturumuyla |

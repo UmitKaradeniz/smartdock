@@ -1,5 +1,5 @@
 // Settings panel and widget picker.
-import { invoke, cfg, set, h, esc, blip, toast, bus } from './core.js';
+import { invoke, cfg, set, h, esc, blip, toast, bus, hotkeyNote } from './core.js';
 import { icon } from './icons.js';
 import { openPanel, closePanel } from './panels.js';
 import { widgets, CATS } from './widgets.js';
@@ -110,14 +110,19 @@ const PAGES = {
     const lang = h('select', {}, ...[['auto', 'Otomatik / Auto'], ['tr', 'Türkçe'], ['en', 'English']].map(([v, l]) => h('option', { value: v }, l)));
     lang.value = langSetting();
     lang.onchange = () => setLang(lang.value);
+    const keys = h('select', {}, ...['Alt+Space', 'Ctrl+Alt+Space', 'Ctrl+Space', 'Ctrl+Shift+Space', ''].map((v) => h('option', { value: v }, v || $t('Kapalı'))));
+    keys.value = cfg.hotkey;
+    keys.onchange = () => set('hotkey', keys.value);
     return [
-      card('Windows',
+      card(h('span', { lang: 'en' }, 'Windows'), // or Turkish capitals write "WİNDOWS"
+       
         row($t('Windows ile başlat'), sw('autostart', () => invoke('autostart', { enable: cfg.autostart }))),
         row($t('Windows görev çubuğunu gizle'), sw('hideTaskbar'), $t('Kapalıyken dock görev çubuğunun yanında durur. Dock kapanınca görev çubuğu eski haline döner.'))),
       card($t('Genel'),
         row('Dil / Language', lang, $t('Değişince arayüz yeniden yüklenir.')),
+        row($t('Arama kısayolu'), keys, hotkeyNote()),
         row($t('Ses efektleri'), sw('sounds'), $t('Dokunuşlarda kısa, sessiz bir tık sesi.')),
-        row($t('Ücretsiz AI'), sw('ai'), $t('Aramada "kendi kelimelerinle" komutları için. Anahtar ya da abonelik yok.'))),
+        row($t('Ücretsiz AI'), sw('ai'), $t('Aramada "kendi kelimelerinle" komutları için. Yazdığın soru text.pollinations.ai adresine gider; anahtar ya da abonelik yok.'))),
     ];
   },
   weather(redraw, { field }) {
@@ -212,7 +217,7 @@ const PAGES = {
         row($t('Otomatik denetle'), sw('updateCheck'))),
       card($t('Dock'),
         row($t('Widget\'lar'), h('button', { class: 'btn', onclick: () => openPicker() }, icon('grid', 13), $t('Aç'))),
-        row($t('Arayüzü yenile'), h('button', { class: 'btn', onclick: () => location.reload() }, icon('chart', 13), $t('Yenile'))),
+        row($t('Arayüzü yenile'), h('button', { class: 'btn', onclick: () => location.reload() }, icon('refresh', 13), $t('Yenile'))),
         row($t('Dock\'u kapat'), h('button', { class: 'btn danger', onclick: () => invoke('quit') }, icon('power', 13), $t('Kapat')))),
     ];
   },
@@ -256,7 +261,7 @@ export function openSettings(tab = 'look') {
     // some settings also change from outside the panel (drag to the other edge, search commands);
     // theme and accent redraw the page that shows them
     const later = () => queueMicrotask(render);
-    const offs = [bus.on('update', () => cur === 'about' && render()), ...['position', 'theme', 'size', 'accent'].map((k) => bus.on('cfg:' + k, later))];
+    const offs = [bus.on('update', () => cur === 'about' && render()), bus.on('hotkey-state', () => cur === 'system' && render()),...['position', 'theme', 'size', 'accent'].map((k) => bus.on('cfg:' + k, later))];
     return () => { flushFields(); offs.forEach((off) => off()); };
   });
 }

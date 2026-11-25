@@ -46,6 +46,9 @@ export const DEFAULTS = {
   liveGlass: false,
   updateCheck: true, // ask GitHub for a newer release now and then
   ai: true,
+  aiOk: false, // the user has been told that AI questions leave the computer
+  tips: false, // first-run hints are waiting to be read
+  hotkey: 'Alt+Space', // opens search from anywhere; '' = none
   monitor: null,
   city: null,
   items: ['search', 'apps', 'clock', 'claude', 'weather', 'toggles', 'screentime', 'nowplaying'],
@@ -103,6 +106,21 @@ export function set(key, val) {
   bus.emit('cfg', key);
 }
 
+// ---------- search shortcut ----------
+export const hotkey = { active: null }; // what Windows actually gave us
+export async function applyHotkey() {
+  const want = cfg.hotkey;
+  try { hotkey.active = await invoke('set_hotkey', { keys: want }); } catch (e) { return console.warn('hotkey', e); }
+  if (hotkey.active !== want) toast(hotkeyNote(), 'err');
+  bus.emit('hotkey-state');
+}
+/** One line about the shortcut: what it does, or why another one (or none) is active. */
+export function hotkeyNote() {
+  const a = hotkey.active;
+  if (a == null || a === cfg.hotkey) return $t('Aramayı her yerden açar.');
+  return a ? $t('{0} başka bir uygulamada; şu an {1} çalışıyor.').replace('{0}', cfg.hotkey).replace('{1}', a) : $t('{} başka bir uygulamada; kısayol şu an çalışmıyor.').replace('{}', cfg.hotkey);
+}
+
 // ---------- services: polled only while someone is subscribed ----------
 const services = new Map();
 export function defineService(name, fetcher, every) {
@@ -113,8 +131,10 @@ async function runService(s) {
   s.busy = true;
   try {
     s.last = await s.fetcher(s.last);
+    s.err = undefined;
     s.subs.forEach((fn) => fn(s.last));
   } catch (e) {
+    s.err = e;
     s.subs.forEach((fn) => fn(s.last, e));
   }
   s.busy = false;
@@ -122,7 +142,9 @@ async function runService(s) {
 export function use(name, fn) {
   const s = services.get(name);
   s.subs.add(fn);
+  // a late subscriber gets what is known, a failure included (or its panel stays empty)
   if (s.last !== undefined) fn(s.last);
+  else if (s.err) fn(undefined, s.err);
   if (s.subs.size === 1) {
     runService(s);
     if (s.every) s.timer = setInterval(() => runService(s), s.every);

@@ -62,6 +62,10 @@ unsafe extern "system" fn no_frame(h: HWND, msg: u32, wp: windows::Win32::Founda
     if tb != 0 && msg == tb {
         // Explorer restarted: its appbar list is gone, register again on the next layout
         shell::forget_appbar();
+        // the new taskbar also comes back without our auto-hide state
+        if WANT_TASKBAR_HIDDEN.load(Ordering::SeqCst) {
+            shell::hide_taskbar(&data("taskbar.state"));
+        }
         if let Some(a) = APP.get() {
             let _ = a.emit("display", ());
         }
@@ -602,6 +606,17 @@ fn memory_low(app: AppHandle, low: bool) {
         });
     }
 }
+/// Registers the search shortcut ("" = none); a taken one falls back to Ctrl+Alt+Space.
+/// Returns the one that is active now.
+#[tauri::command]
+fn set_hotkey(app: AppHandle, keys: String) -> String {
+    let sc = app.global_shortcut();
+    let _ = sc.unregister_all();
+    if keys.is_empty() {
+        return keys;
+    }
+    [keys.as_str(), "Ctrl+Alt+Space"].into_iter().find(|k| sc.register(*k).is_ok()).unwrap_or_default().to_string()
+}
 #[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0)
@@ -1059,9 +1074,6 @@ fn main() {
                 SHELLHOOK.store(RegisterWindowMessageW(windows::core::w!("SHELLHOOK")), Ordering::Relaxed);
                 let _ = RegisterShellHookWindow(own());
             }
-            if app.global_shortcut().register("Alt+Space").is_err() {
-                let _ = app.global_shortcut().register("Ctrl+Alt+Space");
-            }
             unsafe {
                 use windows::Win32::UI::Accessibility::SetWinEventHook;
                 SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, None, Some(on_foreground), 0, 0, WINEVENT_OUTOFCONTEXT);
@@ -1081,7 +1093,7 @@ fn main() {
             get_windows, activate_window, close_window, kill_pid, list_apps, launch, open_path, reveal, open_url,
             press_start, monitors, toggle_desktop, tray_list, tray_click, qs_get, qs_set, bt_devices, storage_info, storage_scan, temps, lhm_start, set_geometry, set_hit, pass_click, set_autohide, set_taskbar, get_stats, get_top, media_get, media_cmd, radios_get, radio_set, volume_get,
             volume_set, screen_time, find_files, claude_usage, claude_cli_usage, claude_link_get, claude_link_set, codex_usage, antigravity_usage, http_text, load_config, save_config, notif_get,
-            wallpaper_info, recycle_bin, autostart, lock_pc, set_live_glass, memory_low, quit
+            wallpaper_info, recycle_bin, autostart, lock_pc, set_live_glass, memory_low, set_hotkey, quit
         ])
         .build(tauri::generate_context!())
         .expect("tauri build");

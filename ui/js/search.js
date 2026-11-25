@@ -32,12 +32,44 @@ function calc(q) {
   if (!/\d/.test(s) || !/[+\-*/^%()]/.test(s.replace(/^-/, ''))) return null;
   if (!s.includes('.') ) s = s.replace(/,/g, '.');
   if (!/^[\d.+\-*/^%()episqrt]+$/i.test(s)) return null;
-  s = s.replace(/\^/g, '**').replace(/(\d+(?:\.\d+)?)%/g, '($1/100)').replace(/sqrt/gi, 'Math.sqrt').replace(/\bpi\b/gi, 'Math.PI');
-  try {
-    const v = Function(`"use strict";return (${s})`)();
-    if (typeof v !== 'number' || !isFinite(v)) return null;
-    return +v.toPrecision(12);
-  } catch { return null; }
+  const v = evalMath(s.replace(/\^/g, '**').toLowerCase());
+  return isFinite(v) ? +v.toPrecision(12) : null;
+}
+// A tiny parser instead of Function(): the page's CSP forbids evaluating text as code.
+// NaN for anything it cannot read completely.
+function evalMath(s) {
+  const toks = s.match(/\*\*|sqrt|pi|(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?%?|./g) || [];
+  let i = 0;
+  const eat = (t) => toks[i] === t && ++i > 0;
+  const group = () => { const v = sum(); return eat(')') ? v : NaN; };
+  const atom = () => {
+    if (eat('(')) return group();
+    if (eat('sqrt')) return eat('(') ? Math.sqrt(group()) : NaN;
+    if (eat('pi')) return Math.PI;
+    const t = toks[i++] || '';
+    return /^\.?\d/.test(t) ? (t.endsWith('%') ? parseFloat(t) / 100 : parseFloat(t)) : NaN;
+  };
+  const unary = () => (eat('-') ? -unary() : eat('+') ? unary() : power());
+  const power = () => { const a = atom(); return eat('**') ? a ** unary() : a; };
+  const product = () => {
+    let v = unary();
+    for (;;) {
+      if (eat('*')) v *= unary();
+      else if (eat('/')) v /= unary();
+      else if (eat('%')) v %= unary();
+      else return v;
+    }
+  };
+  const sum = () => {
+    let v = product();
+    for (;;) {
+      if (eat('+')) v += product();
+      else if (eat('-')) v -= product();
+      else return v;
+    }
+  };
+  const v = sum();
+  return i === toks.length ? v : NaN;
 }
 
 // ---------- conversions ----------
@@ -346,7 +378,20 @@ export function openSearch(anchor, preset = '') {
       finish();
     };
 
+    // once, before the first question leaves the computer
+    const askFirst = (q) => {
+      ++seq;
+      const act = (label, cls, run) => h('button', { class: 'btn ' + cls, onclick: () => { blip(); run(); } }, label);
+      res.replaceChildren(h('div', { class: 'ai-note' },
+        h('b', {}, $t('Sorun bu bilgisayardan çıkacak')),
+        h('p', {}, $t('Yapay zeka yanıtı için yazdığın metin text.pollinations.ai adlı üçüncü taraf bir servise gönderilir. Parola ya da özel bilgi yazma.')),
+        h('div', { class: 'row' },
+          act($t('Anladım, gönder'), 'pri', () => { set('aiOk', true); ai(q); }),
+          act($t("AI'ı kapat"), '', () => { set('ai', false); inp.focus(); update(); }))));
+    };
+
     const ai = async (q) => {
+      if (!cfg.aiOk) return askFirst(q);
       const my = ++seq;
       res.innerHTML = '';
       res.append(h('div', { class: 'li sel', html: `<div class="spin"></div><span class="t1">“${esc(q)}” ${$t('anlaşılıyor...')}</span>` }));

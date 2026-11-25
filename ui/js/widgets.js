@@ -47,7 +47,7 @@ const ringSvg = (pct, size = 30, color = 'var(--accent)', sw = 3.2) => {
 const hov = (el, fn) => { el.classList.add('hov', 'press'); el.onclick = () => { blip(); fn(); }; };
 
 // =============== core ===============
-def('search', $t('Akıllı Arama'), 'core', 'search', $t('Uygulamalar, dosyalar, hesap, çeviri ve ücretsiz AI - Alt+Space.'), (el) => {
+def('search', $t('Akıllı Arama'), 'core', 'search', $t('Uygulamalar, dosyalar, hesap, çeviri ve ücretsiz AI.'), (el) => {
   el.classList.add('w-search');
   el.innerHTML = `${icon('search', 15)}<span class="ph">${$t('Ara ya da dock\'a söyle')}</span>${icon('spark', 14)}`;
   hov(el, () => openSearch(el));
@@ -181,8 +181,9 @@ usageTile('antigravity', $t('Antigravity'), 'antigravity', 'antigravity', $t('Go
 usageTile('codex', 'ChatGPT', 'codex', 'codex', $t('Codex CLI ile bir kez giriş yap (codex login); dock aynı oturumu okur.'));
 
 function openUsage(anchor, name, mark, svc, hint) {
-  openPanel('usage-' + svc, anchor, { w: 330, h: 390 }, (root) => {
-    root.innerHTML = `<div class="ph-head"><div class="mark" style="width:26px;height:26px">${MARK[mark]}</div><div class="title">${name}</div><span class="sub mut plan"></span><div class="grow"></div><button class="ibtn rf" title="${$t('Yenile')}">${icon('chart', 15)}</button></div><div class="ph-body body"></div>`;
+  // Claude's panel also holds the week chart and the live-link box
+  openPanel('usage-' + svc, anchor, { w: 330, h: svc === 'claude' ? 500 : 390, cls: 'scroll' }, (root) => {
+    root.innerHTML = `<div class="ph-head"><div class="mark" style="width:26px;height:26px">${MARK[mark]}</div><div class="title">${name}</div><span class="sub mut plan"></span><div class="grow"></div><button class="ibtn rf" title="${$t('Yenile')}">${icon('refresh', 15)}</button></div><div class="ph-body body"></div>`;
     const body = root.querySelector('.body');
     root.querySelector('.rf').onclick = () => { body.innerHTML = '<div class="spin"></div>'; refresh(svc); };
     return use(svc, (u, err) => {
@@ -190,7 +191,7 @@ function openUsage(anchor, name, mark, svc, hint) {
       if (!u) return;
       root.querySelector('.plan').textContent = u.plan ? String(u.plan).toUpperCase() : '';
       const lb = u.labels || [$t('Oturum (5 saat)'), $t('Haftalık')];
-      const row = (k, w) => w ? `<div class="sect">${k}</div><div class="row"><div class="${barCls(w.pct)} grow" style="height:7px"><i style="width:${w.pct}%"></i></div><b style="min-width:38px;text-align:right">${w.pct}%</b></div><div class="sub mut" style="margin-top:5px">${w.reset ? `${$t('Yenilenme')}: ${w.reset.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' })} · ${until(w.reset)}${w.reset - Date.now() > 0 && w.reset - Date.now() < 86400e3 ? ` ${$t('sonra')}` : ''}` : ''}${forecast(w)}</div>` : '';
+      const row = (k, w) => w ? `<div class="sect">${k}</div><div class="row"><div class="${barCls(w.pct)} grow" style="height:7px"><i style="width:${w.pct}%"></i></div><b style="min-width:38px;text-align:right">${w.pct}%</b></div><div class="sub mut" style="margin-top:5px">${w.reset ? `${$t('Yenilenme')}: ${w.reset.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}${w.reset - Date.now() < 86400e3 ? ` · ${until(w.reset)}${w.reset > Date.now() ? ` ${$t('sonra')}` : ''}` : ''}` : ''}${forecast(w)}</div>` : '';
       body.innerHTML = row(lb[0], u.session) + row(lb[1], u.weekly) + paceChart(u.weekly) + row($t('Opus / Sonnet haftalık'), u.opus) + (u.note ? `<p class="sub mut" style="margin-top:10px">${esc(u.note)}</p>` : '');
       if (svc === 'claude') claudeLink(body);
     });
@@ -203,7 +204,7 @@ async function claudeLink(body) {
   body.append(box);
   const draw = (st) => {
     box.innerHTML = `<div class="grow"><div style="font-weight:600;font-size:11.5px">${st.linked ? $t('Claude Code bağlı') : $t('Canlı güncelleme')}</div><div class="sub mut" style="margin-top:2px">${st.linked ? $t('Terminalde her yanıtta; masaüstünde birkaç dakikada bir güncellenir.') : $t('Claude Code durum satırından anlık yüzde al.')}</div></div>`;
-    const b = h('button', { class: 'btn' }, st.linked ? $t('Kaldır') : $t('Bağla'));
+    const b = h('button', { class: 'btn', title: '~/.claude/settings.json' }, st.linked ? $t('Kaldır') : $t('Bağla'));
     b.onclick = async () => {
       blip();
       b.disabled = true;
@@ -243,7 +244,7 @@ function paceChart(w) {
     <line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${projX.toFixed(1)}" y2="${projY.toFixed(1)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="4 3" opacity="0.75"/>
     <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${col}" opacity="0.25"/>
     <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.8" fill="${col}"/>
-  </svg><div class="pace-foot"><span>${LANG === 'tr' ? `Haftanın %${Math.round(elapsed * 100)}'i geçti` : `${Math.round(elapsed * 100)}% of the week passed`}</span><b style="color:${col}">${label}</b></div></div>`;
+  </svg><div class="pace-foot"><span>${LANG === 'tr' ? `Haftanın geçen kısmı: %${Math.round(elapsed * 100)}` : `${Math.round(elapsed * 100)}% of the week passed`}</span><b style="color:${col}">${label}</b></div></div>`;
 }
 function forecast(w) {
   if (!w?.reset || w.pct < 5) return '';
@@ -325,7 +326,7 @@ function topList(kind) {
   });
 }
 function openTop(anchor, ram) {
-  openPanel('top', anchor, { w: 290, h: 280 }, (root) => {
+  openPanel('top', anchor, { w: 340, h: 280 }, (root) => {
     root.innerHTML = `<div class="ph-head"><div class="title">${ram ? $t('En çok RAM kullananlar') : $t('En çok CPU kullananlar')}</div><div class="grow"></div><button class="btn tm">${icon('task', 14)}${$t('Görev Yöneticisi')}</button></div><div class="ph-body"><div class="list"></div></div>`;
     root.querySelector('.tm').onclick = () => { invoke('launch', { id: 'C:\\Windows\\System32\\Taskmgr.exe' }); closePanel(); };
     return topList(ram)(root);
@@ -490,7 +491,7 @@ def('toggles', $t('Hızlı Ayarlar'), 'sys', 'wifi', $t('Wi-Fi, Bluetooth, ses v
   return () => { a(); b(); c(); };
 });
 function openVolume(anchor) {
-  openPanel('volume', anchor, { w: 260, h: 104 }, (root) => {
+  openPanel('volume', anchor, { w: 260, h: 96 }, (root) => {
     root.innerHTML = `<div class="ph-head"><div class="title">${$t('Ses')}</div><div class="grow"></div><b class="pct"></b></div><div class="ph-body row"><button class="ibtn m">${icon('vol', 16)}</button><input type="range" min="0" max="100" class="grow"></div>`;
     const r = root.querySelector('input'), pct = root.querySelector('.pct'), m = root.querySelector('.m');
     let t = 0;
@@ -516,7 +517,7 @@ def('recycle', $t('Geri Dönüşüm Kutusu'), 'sys', 'trash', $t('Çöpteki öğ
 });
 // Emptying is permanent, so it lives behind an explicit button in the panel, never on the tile tap.
 function openRecycle(anchor) {
-  openPanel('recycle', anchor, { w: 280, h: 150 }, (root) => {
+  openPanel('recycle', anchor, { w: 280, h: 126 }, (root) => {
     root.innerHTML = `<div class="ph-head"><div>${icon('trash', 18)}</div><div class="title">${$t('Geri Dönüşüm Kutusu')}</div></div><div class="ph-body"><p class="info mut"></p><div class="row" style="margin-top:12px;gap:8px"><button class="btn op grow">${$t('Aç')}</button><button class="btn em grow" style="color:var(--bad)">${$t('Boşalt')}</button></div></div>`;
     root.querySelector('.op').onclick = () => { invoke('open_path', { path: 'shell:RecycleBinFolder' }); closePanel(); };
     const em = root.querySelector('.em');
@@ -729,7 +730,7 @@ def('temp', $t('Sıcaklık'), 'sys', 'therm', $t('İşlemci ısısı, CPU ve RAM
   return () => { a(); b(); };
 });
 function openTemp(anchor) {
-  openPanel('temp', anchor, { w: 580, h: 360, cls: 'big' }, (root, close) => {
+  openPanel('temp', anchor, { w: 580, h: 392, cls: 'big' }, (root, close) => {
     root.innerHTML = `<div class="ph-head"><div class="title">${$t('Sıcaklık')}</div><div class="grow"></div><button class="ibtn x">${icon('close', 15)}</button></div>
       <div class="st-grid"><div class="st-left"><span class="sub src">${$t('İşlemci')}</span><div class="row" style="align-items:center;gap:10px"><span class="hero c"></span><span class="tag st"></span></div><div class="tchart"></div><div class="row sub" style="justify-content:space-between"><span>${$t('10 dk önce')}</span><span>${$t('Şimdi')}</span></div></div>
       <div class="st-right"><div class="sub sect">${$t('SENSÖRLER')}</div><div class="sens"></div><div class="sub sect" style="margin-top:14px">${$t('YÜK')}</div><div class="load"></div></div></div>
@@ -1004,7 +1005,7 @@ def('github', $t('GitHub Serisi'), 'dev', 'github', $t('Katkı ızgarası ve gü
 let calMonth = null, calSel = null;
 export function openCalendar(anchor) {
   calMonth = new Date(); calMonth.setDate(1); calSel = new Date();
-  openPanel('calendar', anchor, { w: 700, h: 410 }, (root) => {
+  openPanel('calendar', anchor, { w: 700, h: 392 }, (root) => {
     const draw = () => {
       const y = calMonth.getFullYear(), m = calMonth.getMonth();
       const first = new Date(y, m, 1), off = (first.getDay() + 6) % 7;
@@ -1019,9 +1020,9 @@ export function openCalendar(anchor) {
         grid += `<div class="day${d.getMonth() !== m ? ' other' : ''}${k === tk ? ' today' : ''}${k === sk ? ' sel' : ''}" data-k="${k}"><span class="num">${d.getDate()}</span><div class="dots">${list.slice(0, 6).map((e) => `<i style="background:${e.color}"></i>`).join('')}</div></div>`;
       }
       const dayEv = byDay.get(sk) || [];
-      root.innerHTML = `<div class="cal"><div><div class="ph-head"><div style="color:var(--bad)">${icon('cal', 18)}</div><div class="title">${MONTHS[m]} ${y}</div><div class="grow"></div><button class="btn sync" title="${$t('Takvim aboneliklerini yenile')}">${icon('chart', 13)}${$t('Senkronize')}</button><button class="ibtn pv">${icon('chevl', 16)}</button><button class="btn td">${$t('Bugün')}</button><button class="ibtn nx">${icon('chev', 16)}</button></div><div class="grid">${grid}</div></div>
+      root.innerHTML = `<div class="cal"><div><div class="ph-head"><div style="color:var(--bad)">${icon('cal', 18)}</div><div class="title">${MONTHS[m]} ${y}</div><div class="grow"></div><button class="btn sync" title="${$t('Takvim aboneliklerini yenile')}">${icon('refresh', 13)}${$t('Senkronize')}</button><button class="ibtn pv">${icon('chevl', 16)}</button><button class="btn td">${$t('Bugün')}</button><button class="ibtn nx">${icon('chev', 16)}</button></div><div class="grid">${grid}</div></div>
         <div class="agenda"><div class="row"><b>${calSel.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b><div class="grow"></div><span class="sub mut">${dayEv.length} ${$t('etkinlik')}</span></div><div class="scroll" style="flex:1;display:flex;flex-direction:column;gap:6px">${dayEv.map((e) => `<div class="ev"><i class="bar-v" style="background:${e.color}"></i><div class="grow"><div class="t1" style="font-size:11.5px;font-weight:600;white-space:normal">${esc(e.title)}</div><div class="sub mut">${e.allDay ? $t('Tüm gün') : e.start.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${esc(e.src || '')}</div></div>${e.id ? `<button class="ibtn del" data-id="${e.id}">${icon('close', 12)}</button>` : ''}</div>`).join('') || `<p class="mut" style="padding:8px 2px">${$t('Boş bir gün.')}</p>`}</div>
-        <div class="stack" style="gap:6px"><input class="nt" placeholder="${$t('Yeni etkinlik')}"><div class="row"><input class="tt" type="time" style="width:84px;padding:6px"><select class="rp" style="flex:1;min-width:0;padding:6px"><option value="none">${$t('Tekrar yok')}</option><option value="weekly">${$t('Her hafta')}</option><option value="monthly">${$t('Her ay')}</option><option value="yearly">${$t('Her yıl')}</option></select><button class="btn pri add">${$t('Ekle')}</button></div></div></div></div>`;
+        <div class="stack" style="gap:6px"><input class="nt" placeholder="${$t('Yeni etkinlik')}"><div class="row"><input class="tt" type="time" style="width:78px;padding:6px 4px"><select class="rp" style="flex:1;min-width:0;padding:6px 2px"><option value="none">${$t('Tekrar yok')}</option><option value="weekly">${$t('Her hafta')}</option><option value="monthly">${$t('Her ay')}</option><option value="yearly">${$t('Her yıl')}</option></select><button class="btn pri add" style="padding:0 8px" title="${$t('Ekle')}">${icon('plus', 14)}</button></div></div></div></div>`;
       root.querySelector('.pv').onclick = () => { calMonth.setMonth(m - 1); draw(); };
       root.querySelector('.nx').onclick = () => { calMonth.setMonth(m + 1); draw(); };
       root.querySelector('.td').onclick = () => { calMonth = new Date(); calMonth.setDate(1); calSel = new Date(); draw(); };

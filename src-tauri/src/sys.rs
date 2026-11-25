@@ -364,7 +364,11 @@ pub fn http_text(url: &str) -> Result<String, String> {
         return Err("yalnız https".into());
     }
     let u = url.replacen("webcal://", "https://", 1);
-    ureq::get(&u)
+    // a redirect must not downgrade to plain http; into_string() already stops at 10 MB
+    ureq::AgentBuilder::new()
+        .https_only(true)
+        .build()
+        .get(&u)
         .set("User-Agent", "smartdock")
         .timeout(std::time::Duration::from_secs(15))
         .call()

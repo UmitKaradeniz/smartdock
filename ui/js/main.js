@@ -1,5 +1,5 @@
 // Boot, dock layout, native window geometry, edit mode.
-import { invoke, listen, cfg, set, save, h, bus, loadConfig, blip, toast } from './core.js';
+import { invoke, listen, cfg, set, save, h, bus, loadConfig, blip, toast, applyHotkey, hotkey } from './core.js';
 import { initData } from './data.js';
 import { widgets } from './widgets.js';
 import { setWidgets } from './search.js';
@@ -273,6 +273,22 @@ const tileRO = new ResizeObserver((es) => {
 });
 const TILE_SIZES = { S: $t('Küçük'), M: $t('Normal'), L: $t('Büyük'), XL: $t('Çok büyük') };
 
+// ---------- first run: what is not visible on the dock itself ----------
+// Stays pending until "got it": closing it any other way shows it again on the next start.
+function openTips() {
+  openPanel('tips', null, { w: 340, h: 272, cls: 'scroll' }, (root, close) => {
+    const tip = (ic, title, text) => h('div', { class: 'tip-row' }, icon(ic, 18), h('div', {}, h('b', {}, title), h('span', {}, text)));
+    const key = hotkey.active;
+    root.append(
+      h('div', { class: 'ph-head' }, h('div', { class: 'title' }, $t('Hoş geldin'))),
+      h('div', { class: 'ph-body' },
+        tip('gear', $t('Sağ tıkla düzenle'), $t("Dock'a sağ tıklayınca widget'lar, boyut ve ayarlar açılır.")),
+        tip('pin', $t('Uygulamalarını sabitle'), $t('Açık bir uygulamayı sabitlilerin arasına sürükle ya da sağ tıklayıp sabitle.')),
+        tip('search', $t('Her yerden ara'), key ? $t('{} ile uygulama, dosya ve hesap ara.').replace('{}', key) : $t('Arama kutusundan uygulama, dosya ve hesap ara.')),
+        h('div', { class: 'row' }, h('div', { class: 'grow' }), h('button', { class: 'btn pri', onclick: () => { blip(); set('tips', false); close(); } }, $t('Anladım')))));
+  });
+}
+
 // ---------- fine sizing: scale and width per widget, applied live ----------
 function openTune(tile) {
   const id = tile.dataset.w;
@@ -388,6 +404,7 @@ async function boot() {
   applyLook();
   await initGlass(() => dock);
   const list = await getApps();
+  if (!cfg._pinnedOnce) set('tips', true); // a first run
   if (!cfg.pinned.length && !cfg._pinnedOnce) { set('pinned', defaultPins(list)); set('_pinnedOnce', true); }
   renderItems();
   updateGlass(dock);
@@ -416,6 +433,9 @@ async function boot() {
   bus.on('toast', showToast);
   bus.on('alarm', (text) => { const s = cfg.sounds; cfg.sounds = true; blip('ok'); setTimeout(() => blip('ok'), 180); cfg.sounds = s; toast(text); });
   listen('hotkey', () => bus.emit('hotkey'));
+  bus.on('cfg:hotkey', applyHotkey);
+  await applyHotkey();
+  if (cfg.tips) openTips();
   listen('fullscreen', (fs) => { if (fs) closePanel(); });
   listen('reveal', (on) => { if (!on) closePanel(); });
   // resolution / DPI change or Explorer restart: re-place the window, region and appbar

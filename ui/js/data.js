@@ -18,7 +18,8 @@ export function initData() {
   const tHist = [];
   defineService('temps', async () => {
     const r = await invoke('temps');
-    const zones = r.zones || [];
+    // boards report unused sensor inputs as impossible values (e.g. 113 °C): leave those out
+    const zones = (r.zones || []).filter((z) => z.c > 0 && z.c < 110);
     // LibreHardwareMonitor gives the real CPU package; ACPI zones are only a board estimate
     const hot = r.cpu ?? (zones.length ? Math.max(...zones.map((z) => z.c)) : null);
     if (hot != null) { tHist.push(hot); if (tHist.length > 120) tHist.shift(); }

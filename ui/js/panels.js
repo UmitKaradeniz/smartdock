@@ -57,8 +57,13 @@ export function place(el, anchor, w) {
   let x = ar.left + ar.width / 2 - w / 2;
   x = Math.max(8, Math.min(innerWidth - w - 8, x));
   el.style.left = x + 'px';
-  if (document.body.classList.contains('top')) el.style.top = dr.bottom + 10 + 'px';
+  const top = document.body.classList.contains('top');
+  if (top) el.style.top = dr.bottom + 10 + 'px';
   else el.style.bottom = innerHeight - dr.top + 10 + 'px';
+  // short or highly scaled screens: the panel shrinks and scrolls instead of leaving the window
+  const room = Math.max(160, Math.floor((top ? innerHeight - dr.bottom : dr.top) - 18));
+  el.style.maxHeight = room + 'px';
+  el.style.overflowY = parseFloat(el.style.height) > room ? 'auto' : '';
 }
 
 export function repositionPanel() {
