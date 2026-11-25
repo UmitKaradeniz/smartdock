@@ -62,8 +62,14 @@ const P = {
   task: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M7 15l3-3.5 2.5 2 4.5-5"/>',
 };
 
+// h() inserts a child string as HTML only if icon() made it: window titles, file or calendar
+// names that merely look like "<svg…" stay text.
+const made = new Set();
+export const isIcon = (s) => made.has(s);
 export function icon(name, size = 18, extra = '') {
-  return `<svg class="ic ${extra}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.spark}</svg>`;
+  const svg = `<svg class="ic ${extra}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.spark}</svg>`;
+  made.add(svg);
+  return svg;
 }
 
 export const START_ICON = `<svg viewBox="0 0 24 24" width="100%" height="100%"><defs><linearGradient id="stg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#b9c8e6"/></linearGradient></defs><rect x="2.5" y="2.5" width="9" height="9" rx="1.6" fill="url(#stg)"/><rect x="12.5" y="2.5" width="9" height="9" rx="1.6" fill="url(#stg)"/><rect x="2.5" y="12.5" width="9" height="9" rx="1.6" fill="url(#stg)"/><rect x="12.5" y="12.5" width="9" height="9" rx="1.6" fill="url(#stg)"/></svg>`;

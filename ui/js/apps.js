@@ -55,8 +55,8 @@ export function defaultPins(list) {
   return out;
 }
 
-// ---------- unread counts: notification center + window titles + flashing windows ----------
-let notifs = { ids: {}, names: {} };
+// ---------- unread counts: taskbar badges + notification center + window titles + flashing windows ----------
+let notifs = { ids: {}, names: {}, badges: {} };
 invoke('notif_get').then((n) => { notifs = n; bus.emit('notifs'); }).catch(() => {});
 listen('notifs', (n) => { notifs = n; bus.emit('notifs'); });
 // "(3) WhatsApp", "Gelen Kutusu (12) - Gmail", "Slack - 4 new items" stay out: only bracketed counts
@@ -75,7 +75,9 @@ function unread(ws, p, name) {
   for (const k of keys) n = Math.max(n, fresh(notifs.ids?.[k]));
   if (!n) n = fresh(notifs.names?.[low(p?.name || name)]);
   const titled = ws.filter((w) => !BROWSER.test(w.exe)).reduce((s, w) => s + titleCount(w.title), 0);
-  return Math.max(n, titled);
+  // a badge is the app's own unread number: it stays until the app clears it, seen or not
+  const badge = Math.max(0, ...keys.map((k) => notifs.badges?.[k] || 0));
+  return Math.max(n, titled, badge);
 }
 /** The app in front has been seen: its badge clears and stays clear until something new arrives. */
 function markSeen(keys) {

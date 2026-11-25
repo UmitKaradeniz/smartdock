@@ -1,5 +1,6 @@
 // Core: native bridge, event bus, persistent config, ref-counted data services.
 import { $t } from './i18n.js';
+import { isIcon } from './icons.js';
 const T = window.__TAURI__;
 export const invoke = (cmd, args) => T.core.invoke(cmd, args);
 export const listen = (evt, fn) => T.event.listen(evt, (e) => fn(e.payload));
@@ -39,6 +40,7 @@ export const DEFAULTS = {
   magSpeed: 'normal',
   toggles: ['wifi', 'bt', 'vol', 'hs'], // Hızlı Ayarlar buttons, in order
   peek: true, // show-desktop sliver in the screen corner
+  settingsButton: true, // gear at the end of the dock
   autostart: false,
   sounds: false,
   liveGlass: false,
@@ -177,7 +179,7 @@ export function h(tag, attrs = {}, ...kids) {
   for (const c of kids.flat()) {
     if (c == null || c === false) continue;
     if (c.nodeType) el.append(c);
-    else if (typeof c === 'string' && c.startsWith('<svg')) el.insertAdjacentHTML('beforeend', c); // icon() markup
+    else if (isIcon(c)) el.insertAdjacentHTML('beforeend', c);
     else el.append(document.createTextNode(c));
   }
   return el;

@@ -160,7 +160,7 @@ function usageTile(id, name, mark, svc, hint, labels = [$t('Oturum'), $t('Haftal
     const q = () => { bars = el.querySelectorAll('.bar'); rs = el.querySelectorAll('.r'); vs = el.querySelectorAll('.v'); };
     q();
     const draw = (u, err) => {
-      if (err && !u) { el.querySelector('.ubars').innerHTML = `<span class="k" style="grid-column:1/-1">${name}</span><span class="r" style="grid-column:1/-1;text-align:left">${$t('Bağlamak için tıkla')}</span>`; el.title = String(err); bars = null; return; }
+      if (err && !u) { el.querySelector('.ubars').innerHTML = `<span class="k" style="grid-column:1/-1">${name}</span><span class="r" style="grid-column:1/-1;text-align:left">${$t('Bağlamak için tıkla')}</span>`; el.title = $t(String(err)); bars = null; return; }
       if (!u) return;
       if (!bars?.length) { const x = el.querySelector('.badge-x'); el.innerHTML = tpl; if (x) el.append(x); q(); el.title = ''; }
       [u.session, u.weekly].forEach((w, i) => {
@@ -186,7 +186,7 @@ function openUsage(anchor, name, mark, svc, hint) {
     const body = root.querySelector('.body');
     root.querySelector('.rf').onclick = () => { body.innerHTML = '<div class="spin"></div>'; refresh(svc); };
     return use(svc, (u, err) => {
-      if (err && !u) { body.innerHTML = `<div class="sect">${$t('Bağlantı')}</div><p class="mut" style="line-height:1.5">${esc(String(err))}</p><p class="mut" style="line-height:1.5;margin-top:8px">${hint}</p>`; return; }
+      if (err && !u) { body.innerHTML = `<div class="sect">${$t('Bağlantı')}</div><p class="mut" style="line-height:1.5">${esc($t(String(err)))}</p><p class="mut" style="line-height:1.5;margin-top:8px">${hint}</p>`; return; }
       if (!u) return;
       root.querySelector('.plan').textContent = u.plan ? String(u.plan).toUpperCase() : '';
       const lb = u.labels || [$t('Oturum (5 saat)'), $t('Haftalık')];
@@ -202,13 +202,13 @@ async function claudeLink(body) {
   const box = h('div', { class: 'pace-box', style: { display: 'flex', alignItems: 'center', gap: '10px' } });
   body.append(box);
   const draw = (st) => {
-    box.innerHTML = `<div class="grow"><div style="font-weight:600;font-size:11.5px">${st.linked ? $t('Claude Code bağlı') : $t('Canlı güncelleme')}</div><div class="sub mut" style="margin-top:2px">${st.linked ? $t('Her yanıttan sonra saniyeler içinde güncellenir.') : $t('Claude Code durum satırından anlık yüzde al.')}</div></div>`;
+    box.innerHTML = `<div class="grow"><div style="font-weight:600;font-size:11.5px">${st.linked ? $t('Claude Code bağlı') : $t('Canlı güncelleme')}</div><div class="sub mut" style="margin-top:2px">${st.linked ? $t('Terminalde her yanıtta; masaüstünde birkaç dakikada bir güncellenir.') : $t('Claude Code durum satırından anlık yüzde al.')}</div></div>`;
     const b = h('button', { class: 'btn' }, st.linked ? $t('Kaldır') : $t('Bağla'));
     b.onclick = async () => {
       blip();
       b.disabled = true;
       try { draw(await invoke('claude_link_set', { on: !st.linked })); toast(st.linked ? $t('Bağlantı kaldırıldı') : $t('Bağlandı · Claude Code’da bir mesaj sonrası güncellenir')); }
-      catch (e) { toast(String(e)); b.disabled = false; }
+      catch (e) { toast($t(String(e))); b.disabled = false; }
     };
     box.append(b);
   };
@@ -364,7 +364,7 @@ function ringTile(id, name, ic, desc, pick, panelRam) {
 ringTile('cpuring', $t('CPU Halkası'), 'cpu', $t('İşlemci yükü halka olarak; tıkla, en çok kullananlar.'), (s) => s.cpu, false);
 ringTile('ramring', $t('RAM Halkası'), 'ram', $t('Kullanılan bellek halka olarak.'), (s) => (s.ram_used / s.ram_total) * 100, true);
 
-def('ailimits', 'AI Limitleri', 'ai', 'spark', $t('İki yapay zeka planın tek tile’da: oturum doluluğu ve ne zaman yenileneceği.'), (el) => {
+def('ailimits', $t('AI Limitleri'), 'ai', 'spark', $t('İki yapay zeka planın tek tile’da: oturum doluluğu ve ne zaman yenileneceği.'), (el) => {
   const SV = [['claude', $t('Claude'), 'claude'], ['codex', 'ChatGPT', 'codex'], ['antigravity', $t('Antigravity'), 'antigravity']];
   hov(el, () => { const f = SV.find(([sv]) => peek(sv)) || SV[0]; openUsage(el, f[1], f[2], f[0], ''); });
   const got = {};
@@ -664,7 +664,7 @@ def('storage', $t('Depolama'), 'sys', 'disk', $t('C: sürücüsünde kalan yer; 
   return use('storage', (d) => {
     if (!d?.total) return;
     const p = ((d.total - d.free) / d.total) * 100;
-    el.innerHTML = `${ringSvg(p, 28, p > 90 ? 'var(--bad)' : p > 75 ? 'var(--warn)' : 'var(--accent)')}<div class="stack"><span class="sub">${$t('Depolama')}</span><span class="lbl n">${fmtBytes(d.free)} ${$t('boş')}</span></div>`;
+    el.innerHTML = `${ringSvg(p, 28, p > 90 ? 'var(--bad)' : p > 75 ? 'var(--warn)' : 'var(--accent)')}<div class="stack"><span class="sub">${$t('Depolama')}</span><span class="lbl n">${fmtBytes(d.free)} ${$t('boş alan')}</span></div>`;
   });
 });
 function openStorage(anchor) {
@@ -733,7 +733,7 @@ function openTemp(anchor) {
     lb.onclick = async () => {
       blip(); lb.disabled = true; lb.textContent = $t('Yönetici onayı bekleniyor…');
       try { await invoke('lhm_start'); lb.textContent = $t('Başlatılıyor…'); toast($t('LibreHardwareMonitor artık arka planda kendiliğinden çalışacak')); setTimeout(() => refresh('temps'), 8000); }
-      catch (e) { lb.disabled = false; lb.textContent = $t('Gerçek sıcaklığı aç'); toast(String(e), 'err'); }
+      catch (e) { lb.disabled = false; lb.textContent = $t('Gerçek sıcaklığı aç'); toast($t(String(e)), 'err'); }
     };
     root.querySelector('.x').onclick = close;
     const row = (k, v, p, col) => `<div class="mrow"><div class="row"><span class="grow">${k}</span><b>${v}</b></div><div class="bar" style="height:4px"><i style="width:${p}%;background:${col}"></i></div></div>`;
@@ -753,7 +753,7 @@ function openTemp(anchor) {
       root.querySelector('.c').textContent = t.hot == null ? '–' : `${Math.round(t.hot)}°C`;
       const tag = root.querySelector('.st'); tag.textContent = t.hot == null ? $t('Sensör yok') : lbl; tag.className = `tag st ${cls}`;
       root.querySelector('.tchart').innerHTML = t.hot == null ? `<div class="empty"><b>${$t('Bu bilgisayar ısı sensörü paylaşmıyor')}</b><span class="sub">${$t('Masaüstü anakartları çoğu zaman Windows’a ısı bölgesi açmaz.')}</span></div>` : line(t.hist);
-      root.querySelector('.sens').innerHTML = t.zones.map((z, i) => row(t.source === 'lhm' ? esc(z.name) : `${$t('Bölge')} ${i + 1}`, `${Math.round(z.c)}°`, Math.min(100, z.c), `var(--${tState(z.c)[1]})`)).join('') || '<span class="sub">Yok</span>';
+      root.querySelector('.sens').innerHTML = t.zones.map((z, i) => row(t.source === 'lhm' ? esc($t(z.name)) : `${$t('Bölge')} ${i + 1}`, `${Math.round(z.c)}°`, Math.min(100, z.c), `var(--${tState(z.c)[1]})`)).join('') || `<span class="sub">${$t('Yok')}</span>`;
     });
     const b = use('stats', (s) => {
       if (!s) return;
@@ -982,7 +982,7 @@ def('crypto', $t('Kripto'), 'fin', 'coin', $t('Bitcoin ve Ethereum fiyatı, 24 s
 });
 
 // =============== developer ===============
-def('github', 'GitHub Serisi', 'dev', 'github', $t('Katkı ızgarası ve günlük seri (ayarlardan kullanıcı adı).'), (el) => {
+def('github', $t('GitHub Serisi'), 'dev', 'github', $t('Katkı ızgarası ve günlük seri (ayarlardan kullanıcı adı).'), (el) => {
   hov(el, () => (cfg.ghUser ? invoke('open_url', { url: `https://github.com/${cfg.ghUser}` }) : import('./settings.js').then((s) => s.openSettings('dev'))));
   return use('gh', (r) => {
     if (!r) { el.innerHTML = `${icon('github', 16)}<span class="sub">${$t('Kullanıcı adı ekle')}</span>`; return; }
@@ -1015,7 +1015,7 @@ export function openCalendar(anchor) {
       }
       const dayEv = byDay.get(sk) || [];
       root.innerHTML = `<div class="cal"><div><div class="ph-head"><div style="color:var(--bad)">${icon('cal', 18)}</div><div class="title">${MONTHS[m]} ${y}</div><div class="grow"></div><button class="btn sync" title="${$t('Takvim aboneliklerini yenile')}">${icon('chart', 13)}${$t('Senkronize')}</button><button class="ibtn pv">${icon('chevl', 16)}</button><button class="btn td">${$t('Bugün')}</button><button class="ibtn nx">${icon('chev', 16)}</button></div><div class="grid">${grid}</div></div>
-        <div class="agenda"><div class="row"><b>${calSel.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b><div class="grow"></div><span class="sub mut">${dayEv.length} ${$t('etkinlik')}</span></div><div class="scroll" style="flex:1;display:flex;flex-direction:column;gap:6px">${dayEv.map((e) => `<div class="ev"><i class="bar-v" style="background:${e.color}"></i><div class="grow"><div class="t1" style="font-size:11.5px;font-weight:600;white-space:normal">${esc(e.title)}</div><div class="sub mut">${e.allDay ? $t('Tüm gün') : e.start.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${esc(e.src || '')}</div></div>${e.id ? `<button class="ibtn del" data-id="${e.id}">${icon('close', 12)}</button>` : ''}</div>`).join('') || '<p class="mut" style="padding:8px 2px">Boş bir gün.</p>'}</div>
+        <div class="agenda"><div class="row"><b>${calSel.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</b><div class="grow"></div><span class="sub mut">${dayEv.length} ${$t('etkinlik')}</span></div><div class="scroll" style="flex:1;display:flex;flex-direction:column;gap:6px">${dayEv.map((e) => `<div class="ev"><i class="bar-v" style="background:${e.color}"></i><div class="grow"><div class="t1" style="font-size:11.5px;font-weight:600;white-space:normal">${esc(e.title)}</div><div class="sub mut">${e.allDay ? $t('Tüm gün') : e.start.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${esc(e.src || '')}</div></div>${e.id ? `<button class="ibtn del" data-id="${e.id}">${icon('close', 12)}</button>` : ''}</div>`).join('') || `<p class="mut" style="padding:8px 2px">${$t('Boş bir gün.')}</p>`}</div>
         <div class="stack" style="gap:6px"><input class="nt" placeholder="${$t('Yeni etkinlik')}"><div class="row"><input class="tt" type="time" style="width:84px;padding:6px"><select class="rp" style="flex:1;min-width:0;padding:6px"><option value="none">${$t('Tekrar yok')}</option><option value="weekly">${$t('Her hafta')}</option><option value="monthly">${$t('Her ay')}</option><option value="yearly">${$t('Her yıl')}</option></select><button class="btn pri add">${$t('Ekle')}</button></div></div></div></div>`;
       root.querySelector('.pv').onclick = () => { calMonth.setMonth(m - 1); draw(); };
       root.querySelector('.nx').onclick = () => { calMonth.setMonth(m + 1); draw(); };

@@ -1,5 +1,5 @@
 // Panels, context menus and toasts. Panels grow the native window before they appear.
-import { h, bus, blip } from './core.js';
+import { h, esc, bus, blip } from './core.js';
 import { icon } from './icons.js';
 
 let layoutHook = async () => {};
@@ -73,7 +73,7 @@ export function menu(anchor, items, w = 210) {
     for (const it of items) {
       if (it === '-') { root.append(h('div', { class: 'mhr' })); continue; }
       root.append(
-        h('div', { class: `mi${it.danger ? ' danger' : ''}`, onclick: () => { close(); it.run(); }, html: (it.icon ? icon(it.icon, 15) : '') + `<span>${it.label}</span>` })
+        h('div', { class: `mi${it.danger ? ' danger' : ''}`, onclick: () => { close(); it.run(); }, html: (it.icon ? icon(it.icon, 15) : '') + `<span>${esc(it.label)}</span>` })
       );
     }
   });

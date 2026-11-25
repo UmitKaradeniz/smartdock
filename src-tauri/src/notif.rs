@@ -1,7 +1,8 @@
-// Unread notification counts per app, read from the Windows notification center.
-// Needs "Notification access" (Settings > Privacy > Notifications); without it the dock still
-// shows counts from window titles ("(3) WhatsApp") and flashing windows.
+// Unread notification counts per app: toasts in the Windows notification center and the badge
+// numbers apps put on their taskbar icon. Toasts need "Notification access" (Settings > Privacy >
+// Notifications); badges, window titles ("(3) WhatsApp") and flashing windows work without it.
 use serde_json::{json, Map, Value};
+use std::ffi::c_void;
 use std::sync::Mutex;
 use std::time::Duration;
 use windows::UI::Notifications::Management::{UserNotificationListener, UserNotificationListenerAccessStatus as Access};
@@ -10,7 +11,7 @@ use windows::UI::Notifications::NotificationKinds;
 static LAST: Mutex<Option<Value>> = Mutex::new(None);
 
 pub fn last() -> Value {
-    LAST.lock().unwrap().clone().unwrap_or_else(|| json!({ "access": false, "ids": {}, "names": {} }))
+    LAST.lock().unwrap().clone().unwrap_or_else(|| json!({ "access": false, "ids": {}, "names": {}, "badges": {} }))
 }
 
 fn read(l: &UserNotificationListener) -> windows::core::Result<Value> {
@@ -39,6 +40,63 @@ fn read(l: &UserNotificationListener) -> windows::core::Result<Value> {
     Ok(json!({ "access": true, "ids": ids, "names": names }))
 }
 
+// Windows ships SQLite as winsqlite3.dll
+#[link(name = "winsqlite3")]
+extern "system" {
+    fn sqlite3_open_v2(file: *const u8, db: *mut *mut c_void, flags: i32, vfs: *const u8) -> i32;
+    fn sqlite3_busy_timeout(db: *mut c_void, ms: i32) -> i32;
+    fn sqlite3_prepare_v2(db: *mut c_void, sql: *const u8, len: i32, stmt: *mut *mut c_void, tail: *mut *const u8) -> i32;
+    fn sqlite3_step(stmt: *mut c_void) -> i32;
+    fn sqlite3_column_blob(stmt: *mut c_void, col: i32) -> *const u8;
+    fn sqlite3_column_bytes(stmt: *mut c_void, col: i32) -> i32;
+    fn sqlite3_finalize(stmt: *mut c_void) -> i32;
+    fn sqlite3_close(db: *mut c_void) -> i32;
+}
+
+/// `<badge value="3"/>` -> 3. Glyph badges ("alert", "away", ...) carry no count.
+fn badge_value(xml: &str) -> Option<u64> {
+    let v = xml.split_once("<badge")?.1.split_once("value=")?.1;
+    let quote = v.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+    v[1..].split(quote).next()?.parse().ok().filter(|n| *n > 0)
+}
+
+/// Taskbar badges per app id (WhatsApp, Teams, ...). No public API hands out other apps' badges,
+/// so they come from Windows' own notification database, opened read-only. Only rows of type
+/// 'badge' (a number) are queried, never notification text.
+fn badges() -> Map<String, Value> {
+    let mut out = Map::new();
+    let Ok(local) = std::env::var("LOCALAPPDATA") else { return out };
+    let path = format!("{local}\\Microsoft\\Windows\\Notifications\\wpndatabase.db\0");
+    const SQL: &str = "select h.PrimaryId, n.Payload from Notification n \
+        join NotificationHandler h on h.RecordId = n.HandlerId where n.Type = 'badge' \
+        and (n.ExpiryTime = 0 or n.ExpiryTime > (strftime('%s','now') + 11644473600) * 10000000)\0";
+    const READONLY: i32 = 1;
+    const ROW: i32 = 100;
+    // SAFETY: both strings are NUL terminated; column pointers are copied before the next step.
+    unsafe {
+        let mut db = std::ptr::null_mut();
+        let mut st = std::ptr::null_mut();
+        if sqlite3_open_v2(path.as_ptr(), &mut db, READONLY, std::ptr::null()) == 0 {
+            sqlite3_busy_timeout(db, 200);
+            if sqlite3_prepare_v2(db, SQL.as_ptr(), -1, &mut st, std::ptr::null_mut()) == 0 {
+                let text = |st, col| {
+                    let p = sqlite3_column_blob(st, col);
+                    let n = sqlite3_column_bytes(st, col) as usize;
+                    if p.is_null() { String::new() } else { String::from_utf8_lossy(std::slice::from_raw_parts(p, n)).into_owned() }
+                };
+                while sqlite3_step(st) == ROW {
+                    if let Some(n) = badge_value(&text(st, 1)) {
+                        out.insert(text(st, 0).to_lowercase(), n.into());
+                    }
+                }
+            }
+            sqlite3_finalize(st);
+        }
+        sqlite3_close(db);
+    }
+    out
+}
+
 /// Polls forever on the calling (MTA) thread; `emit` gets every change.
 pub fn run(emit: impl Fn(&Value)) {
     let Ok(l) = UserNotificationListener::Current() else { return };
@@ -51,12 +109,34 @@ pub fn run(emit: impl Fn(&Value)) {
             continue;
         }
         let v = if allowed { read(&l).ok() } else { None };
-        let v = v.unwrap_or_else(|| json!({ "access": false, "ids": {}, "names": {} }));
+        let mut v = v.unwrap_or_else(|| json!({ "access": false, "ids": {}, "names": {} }));
+        v["badges"] = Value::Object(badges());
         let changed = LAST.lock().unwrap().as_ref() != Some(&v);
         if changed {
             *LAST.lock().unwrap() = Some(v.clone());
             emit(&v);
         }
-        std::thread::sleep(Duration::from_secs(if allowed { 2 } else { 30 }));
+        std::thread::sleep(Duration::from_secs(if allowed { 2 } else { 5 }));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn badge_values() {
+        assert_eq!(badge_value(r#"<badge value="3"/>"#), Some(3));
+        assert_eq!(badge_value("<badge version='1' value='12'/>"), Some(12));
+        assert_eq!(badge_value(r#"<badge value="0"/>"#), None);
+        assert_eq!(badge_value(r#"<badge value="alert"/>"#), None);
+        assert_eq!(badge_value(""), None);
+    }
+
+    // reads this PC's database: cargo test --release live_badges -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn live_badges() {
+        println!("{:?}", badges());
     }
 }

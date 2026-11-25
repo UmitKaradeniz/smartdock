@@ -516,3 +516,10 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 .mrow b { font-weight: 650; }
 .panel.big .st-grid { height: calc(100% - 50px); }
 .panel.big:has(.pfoot) .st-grid { height: calc(100% - 92px); }
+
+/* ---------- settings access ---------- */
+.cfgbtn { order: 99; width: 28px; height: var(--tile-h); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; color: var(--fg2); transition: background .12s, color .12s, transform .12s var(--ease); }
+.cfgbtn:hover { background: var(--tile-hi); color: var(--fg); }
+.cfgbtn:active { transform: scale(.92); }
+.no-cfgbtn .cfgbtn, .dock.collapsed > .cfgbtn { display: none; }
+.pclose { position: absolute; top: 10px; right: 12px; z-index: 2; }

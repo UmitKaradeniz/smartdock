@@ -55,7 +55,7 @@ function revealDock() {
 // ---------- appearance ----------
 function applyLook() {
   const b = document.body;
-  b.className = `t-${cfg.theme} s-${cfg.size}${cfg.position === 'top' ? ' top' : ''}${cfg.bar ? ' m-bar' : ''}${b.classList.contains('edit') ? ' edit' : ''}`;
+  b.className = `t-${cfg.theme} s-${cfg.size}${cfg.position === 'top' ? ' top' : ''}${cfg.bar ? ' m-bar' : ''}${cfg.settingsButton === false ? ' no-cfgbtn' : ''}${b.classList.contains('edit') ? ' edit' : ''}`;
   const r = document.documentElement.style;
   mounted.forEach((m) => (m.el.style.minWidth = ''));
   r.setProperty('--accent', cfg.accent);
@@ -65,7 +65,7 @@ function applyLook() {
 }
 
 // ---------- geometry ----------
-let geoKey = '', geoBusy = Promise.resolve();
+let geoKey = '', glassKey = '', geoBusy = Promise.resolve();
 function dockH() { return { S: 48, M: 56, L: 66 }[cfg.size]; }
 const WIN_H = 66 + 8 + 10 + 520 + 40; // largest dock + gaps + tallest panel + shadow
 // memory: idle dock trims WebView2 working set, any interaction restores it
@@ -88,6 +88,9 @@ async function relayout(patch) {
   if (z < z0 || z - z0 > 0.02) dock.style.zoom = z < 1 ? z.toFixed(3) : '';
   dock.style.width = cfg.bar ? innerWidth / (+dock.style.zoom || 1) + 'px' : '';
   const dr = dock.getBoundingClientRect();
+  // the wallpaper layer and lens follow the dock's size and zoom (tiles fill in after boot)
+  const gk = `${dock.style.zoom}|${Math.round(dr.width)}|${Math.round(dr.height)}`;
+  if (gk !== glassKey) { glassKey = gk; updateGlass(dock); }
   // The native window never resizes for panels, toasts or tile width changes: a transparent
   // WebView2 shows its previous frame at the top of a window that just grew, so the dock
   // flashed up the screen. The window is monitor-wide and tall enough for the largest panel;
@@ -167,6 +170,7 @@ function buildDock() {
     h('div', { class: 'halo' }, h('i')),
     h('button', { class: 'unfold press', title: $t('Dock\'ı aç'), html: icon('grid', 20), onclick: () => { blip(); setCollapsed(false); } })
   );
+  dock.append(h('button', { class: 'cfgbtn press', title: $t('Ayarlar'), html: icon('gear', 17), onclick: () => { blip(); openSettings(); } }));
   items = dock;
   stage.append(dock);
   magnifier(dock);
@@ -200,7 +204,11 @@ function buildDock() {
   // shrunk first and the click replayed natively, so the first click after the dock is never lost.
   const outside = (el) => !el?.closest?.('.dock, #layer > *, #peek');
   let downOut = false, passAt = 0;
-  addEventListener('mousedown', (e) => { downOut = outside(e.target); }, true);
+  addEventListener('mousedown', (e) => {
+    downOut = outside(e.target);
+    // the gallery keeps the dock usable (drag to reorder); settings also close from empty dock space
+    if ((downOut && (isOpen('settings') || isOpen('picker'))) || (e.target === dock && isOpen('settings'))) closePanel();
+  }, true);
   addEventListener('mouseup', (e) => {
     if (!downOut || !outside(e.target) || (e.button !== 0 && e.button !== 2) || document.body.classList.contains('appdrag')) return;
     downOut = false;
@@ -388,7 +396,7 @@ async function boot() {
   bus.on('cfg:wtune', renderItems);
   bus.on('collapse', setCollapsed);
   bus.on('cfg:liveGlass', (v) => invoke('set_live_glass', { on: !!v }));
-  for (const k of ['theme', 'accent', 'size', 'radius', 'position', 'monitor', 'bar', 'liveGlass']) bus.on('cfg:' + k, () => { geoKey = ''; applyLook(); });
+  for (const k of ['theme', 'accent', 'size', 'radius', 'position', 'monitor', 'bar', 'liveGlass', 'settingsButton']) bus.on('cfg:' + k, () => { geoKey = ''; applyLook(); });
   listen('wins', () => { if (cfg.liveGlass) refreshBackdrop(dock); });
   bus.on('cfg:reserve', () => { geoKey = ''; relayout(); });
   bus.on('cfg:autoHide', () => { geoKey = ''; relayout(); });
@@ -404,7 +412,9 @@ async function boot() {
   listen('reveal', (on) => { if (!on) closePanel(); });
   // resolution / DPI change or Explorer restart: re-place the window, region and appbar
   listen('display', () => { geoKey = ''; hitKey = ''; relayout(); });
-  addEventListener('blur', () => { if (isOpen() && !isOpen('picker') && !isOpen('settings')) closePanel(); });
+  // focus moved to another window; a half-typed field keeps its panel open (it is not saved yet)
+  const typing = () => [...document.querySelectorAll('#layer input:not([type=range]), #layer textarea')].some((i) => i.closest('.set') && i.value !== i.defaultValue);
+  addEventListener('blur', () => { if (isOpen() && !typing()) closePanel(); });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
   setInterval(() => getApps(true), 10 * 60e3);
 }

@@ -77,10 +77,11 @@ export function refreshBackdrop(dock) {
   const winX = Number.isFinite(window.screenX) ? window.screenX : (SW - innerWidth) / 2;
   const winY = Number.isFinite(window.screenY) ? window.screenY : (cfg.position === 'top' ? 0 : SH - innerHeight);
   const dpr = window.devicePixelRatio || 1;
-  const px = Math.round((winX + r.left - BLEED) * dpr);
-  const py = Math.round((winY + r.top - BLEED) * dpr);
-  const pw = Math.round((r.width + BLEED * 2) * dpr);
-  const ph = Math.round((r.height + BLEED * 2) * dpr);
+  const bleed = BLEED * (+dock.style.zoom || 1);
+  const px = Math.round((winX + r.left - bleed) * dpr);
+  const py = Math.round((winY + r.top - bleed) * dpr);
+  const pw = Math.round((r.width + bleed * 2) * dpr);
+  const ph = Math.round((r.height + bleed * 2) * dpr);
   layer.style.backgroundImage = `url("${SD}/backdrop?x=${px}&y=${py}&w=${pw}&h=${ph}&t=${Date.now()}")`;
   layer.style.backgroundSize = '100% 100%';
   layer.style.backgroundPosition = '0 0';
@@ -94,6 +95,8 @@ export function updateGlass(dock) {
   layer.style.display = useWall ? '' : 'none';
   if (!useWall) return;
   const r = dockRect(dock);
+  // a dock shrunk to fit the screen is zoomed: r is in screen px, the layer's styles are not
+  const z = +dock.style.zoom || 1;
   if (cfg.liveGlass) {
     refreshBackdrop(dock);
   } else {
@@ -102,18 +105,18 @@ export function updateGlass(dock) {
     const winY = cfg.position === 'top' ? 0 : SH - innerHeight;
     const s = Math.max(SW / wall.w, SH / wall.h);
     const dw = wall.w * s, dh = wall.h * s;
-    const ox = (SW - dw) / 2 - (winX + r.left - BLEED);
-    const oy = (SH - dh) / 2 - (winY + r.top - BLEED);
+    const ox = (SW - dw) / 2 - (winX + r.left - BLEED * z);
+    const oy = (SH - dh) / 2 - (winY + r.top - BLEED * z);
     layer.style.backgroundImage = `url("${wall.url}")`;
-    layer.style.backgroundSize = `${dw}px ${dh}px`;
-    layer.style.backgroundPosition = `${ox}px ${oy}px`;
+    layer.style.backgroundSize = `${dw / z}px ${dh / z}px`;
+    layer.style.backgroundPosition = `${ox / z}px ${oy / z}px`;
   }
 
-  const W = Math.round(r.width) + BLEED * 2, H = Math.round(r.height) + BLEED * 2;
+  const W = Math.round(r.width / z) + BLEED * 2, H = Math.round(r.height / z) + BLEED * 2;
   const rad = parseFloat(getComputedStyle(dock).borderTopLeftRadius) || 0;
   const key = `${W}x${H}r${rad}${cfg.theme}`;
-  if (key === lastKey) return;
   clearTimeout(lensT);
+  if (key === lastKey) return;
   lensT = setTimeout(() => buildLens(key, W, H, rad), 140);
 }
 

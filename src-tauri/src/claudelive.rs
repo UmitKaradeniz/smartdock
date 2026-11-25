@@ -2,7 +2,10 @@
 //! - Claude Code's status line: Claude Code pipes `rate_limits` (5 h / 7 day %) to the
 //!   statusLine command after every reply. `smartdock.exe --statusline` is that command; it
 //!   saves the numbers for the dock and still prints a status line (or runs the user's own).
-//! - Claude desktop's own plan-usage-history.json (written about every 15 minutes).
+//! - Claude desktop's own plan-usage-history.json (written about every 15 minutes, but it can
+//!   stop, and Claude Code inside the desktop app runs no status line).
+//! - When both are old: `claude -p /usage`, the official CLI printing the same numbers. It is a
+//!   local command (no model call, no cost); the CLI signs in by itself, the dock sees no token.
 use serde_json::{json, Value};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -37,6 +40,80 @@ pub fn desktop_history() -> Option<PathBuf> {
         }
     }
     c.into_iter().filter_map(|p| Some((std::fs::metadata(&p).ok()?.modified().ok()?, p))).max().map(|x| x.1)
+}
+
+fn claude_exe() -> Option<PathBuf> {
+    let home = std::env::var("USERPROFILE").unwrap_or_default();
+    let known = Path::new(&home).join(".local").join("bin").join("claude.exe");
+    if known.exists() {
+        return Some(known);
+    }
+    std::env::split_paths(&std::env::var_os("PATH")?).map(|d| d.join("claude.exe")).find(|p| p.exists())
+}
+
+/// The reply of `/usage`, only if it really was the local command: an older CLI would send the
+/// text to the model instead, and that costs usage.
+fn usage_reply(json_out: &str) -> Option<Result<String, ()>> {
+    let v: Value = serde_json::from_str(json_out.trim()).ok()?;
+    if v["num_turns"].as_u64() != Some(0) || v["total_cost_usd"].as_f64() != Some(0.0) {
+        return Some(Err(()));
+    }
+    if v["is_error"].as_bool() != Some(false) {
+        return None;
+    }
+    v["result"].as_str().map(|s| Ok(s.to_string()))
+}
+
+/// `claude -p /usage` as plain text. Runs without the user's hooks, MCP servers or session file.
+pub fn cli_usage() -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static OFF: AtomicBool = AtomicBool::new(false);
+    const NO_WINDOW: u32 = 0x0800_0000;
+    let failed = || "claude /usage".to_string();
+    if OFF.load(Ordering::SeqCst) {
+        return Err(failed());
+    }
+    let mut c = Command::new(claude_exe().ok_or_else(failed)?);
+    c.args(["-p", "/usage", "--output-format", "json", "--no-session-persistence", "--strict-mcp-config", "--setting-sources", ""])
+        .current_dir(std::env::temp_dir())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .creation_flags(NO_WINDOW);
+    // started from inside a Claude session, the dock must not pass that session's variables on
+    for (k, _) in std::env::vars_os() {
+        let n = k.to_string_lossy();
+        if n.starts_with("CLAUDE") || n.starts_with("ANTHROPIC") {
+            c.env_remove(&k);
+        }
+    }
+    let mut ch = c.spawn().map_err(|_| failed())?;
+    let mut so = ch.stdout.take().ok_or_else(failed)?;
+    // read while it runs: a full pipe would block the child
+    let reader = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = so.read_to_string(&mut s);
+        s
+    });
+    let deadline = std::time::Instant::now() + Duration::from_secs(25);
+    while matches!(ch.try_wait(), Ok(None)) {
+        if std::time::Instant::now() >= deadline {
+            let _ = ch.kill();
+            let _ = ch.wait();
+            return Err(failed());
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    match usage_reply(&reader.join().map_err(|_| failed())?) {
+        Some(Ok(text)) => Ok(text),
+        Some(Err(())) => {
+            OFF.store(true, Ordering::SeqCst);
+            Err(failed())
+        }
+        None => Err(failed()),
+    }
 }
 
 /// Newest reading of either source, in the shape the UI expects (resets_at in ms).
@@ -103,10 +180,15 @@ pub fn link_state() -> Value {
 /// and still shown (smartdock runs it). Unlinking puts the old one back.
 pub fn set_link(on: bool) -> Result<Value, String> {
     let path = settings_path().ok_or("kullanıcı klasörü yok")?;
-    let mut s = read_settings();
-    if !s.is_object() {
+    // an existing file that cannot be read or parsed must not be replaced with an empty one
+    let readable = match std::fs::read_to_string(&path) {
+        Ok(t) => t.trim().is_empty() || serde_json::from_str::<Value>(&t).is_ok_and(|v| v.is_object()),
+        Err(e) => e.kind() == std::io::ErrorKind::NotFound,
+    };
+    if !readable {
         return Err("~/.claude/settings.json okunamadı".into());
     }
+    let mut s = read_settings();
     let prev = prev_path().ok_or("veri klasörü yok")?;
     if on && !is_ours(&s) {
         let old = s.get("statusLine").cloned().unwrap_or(Value::Null);
@@ -201,4 +283,24 @@ fn run_prev(cmd: &str, input: &str) -> Option<Vec<u8>> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_free_local_reply_counts() {
+        let ok = r#"{"is_error":false,"num_turns":0,"total_cost_usd":0,"result":"Current session: 1% used"}"#;
+        assert_eq!(usage_reply(ok), Some(Ok("Current session: 1% used".into())));
+        assert_eq!(usage_reply(r#"{"is_error":false,"num_turns":1,"total_cost_usd":0.01,"result":"hi"}"#), Some(Err(())));
+        assert_eq!(usage_reply("not json"), None);
+    }
+
+    // runs the installed CLI: cargo test --release live_cli_usage -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn live_cli_usage() {
+        println!("{}", cli_usage().unwrap().lines().take(4).collect::<Vec<_>>().join("\n"));
+    }
 }

@@ -1,6 +1,6 @@
 // Data layer: services and state machines. Knows nothing about the DOM.
 import { invoke, listen, defineService, push, refresh, cfg, set, bus, ymd } from './core.js';
-import { $t } from './i18n.js';
+import { $t, LANG } from './i18n.js';
 
 const j = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
 
@@ -45,12 +45,46 @@ export function initData() {
 }
 
 // ---------- AI plan usage ----------
+/** Reads the text of Claude Code's `/usage` into the same shape as the local records. */
+export function parseCliUsage(text, now = new Date()) {
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // "resets Nov 30, 4pm (Europe/Istanbul)" in this PC's time zone; the date is optional
+  const when = (s) => {
+    const m = /(?:([A-Z][a-z]{2}) (\d{1,2})(?:,| at)? )?(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i.exec(s || '');
+    if (!m) return null;
+    const [, mon, day, hh, mi, ap] = m;
+    const d = new Date(now);
+    d.setHours((+hh % 12) + (ap.toLowerCase() === 'pm' ? 12 : 0), +(mi || 0), 0, 0);
+    if (mon) {
+      d.setMonth(MON.indexOf(mon), +day);
+      if (now - d > 2 * 864e5) d.setFullYear(d.getFullYear() + 1); // late December -> January
+    } else if (d < now) d.setDate(d.getDate() + 1);
+    return d.toISOString();
+  };
+  const win = (re) => {
+    const m = re.exec(text || '');
+    return m ? { utilization: +m[1], resets_at: when(m[2]) } : null;
+  };
+  const five = win(/Current session:\s*([\d.]+)% used(?:[^\n]*?resets ([^\n]*))?/);
+  const week = win(/Current week \(all models\):\s*([\d.]+)% used(?:[^\n]*?resets ([^\n]*))?/);
+  if (!five && !week) return null;
+  return { five_hour: five, seven_day: week, seven_day_opus: win(/Current week \((?!all)[^)]*\):\s*([\d.]+)% used(?:[^\n]*?resets ([^\n]*))?/) };
+}
+// local records older than this are checked against the CLI
+const CLAUDE_FRESH = 6 * 60e3;
+let cliSeen = null;
 async function claude() {
-  const r = await invoke('claude_usage');
+  let r = await invoke('claude_usage').catch((e) => ({ error: e }));
+  if (!(Date.now() - r.at < CLAUDE_FRESH)) {
+    const usage = await invoke('claude_cli_usage').then(parseCliUsage).catch(() => null);
+    if (usage) cliSeen = { src: 'cli', at: Date.now(), usage };
+    if (cliSeen && !(r.at > cliSeen.at)) r = cliSeen;
+  }
+  if (r.error) throw r.error;
   const u = r.usage || {};
   const win = (o) => (o ? { pct: Math.round(o.utilization ?? 0), reset: o.resets_at ? new Date(o.resets_at) : null } : null);
   const age = Math.max(0, Math.round((Date.now() - r.at) / 60000));
-  const src = r.src === 'code' ? $t('Claude Code') : $t('Claude masaüstü kaydı');
+  const src = r.src === 'desktop' ? $t('Claude masaüstü kaydı') : $t('Claude Code');
   const note = `${src} · ${age < 1 ? $t('şimdi') : age + $t(' dk önce')}${r.src === 'desktop' && age > 20 ? $t(' · eski olabilir') : ''}`;
   return { plan: r.plan || '', note, at: r.at, src: r.src, session: win(u.five_hour), weekly: win(u.seven_day), opus: win(u.seven_day_opus) || win(u.seven_day_sonnet) };
 }
@@ -96,7 +130,7 @@ export async function locate() {
   return { name: $t('İstanbul'), lat: 41.01, lon: 28.95 };
 }
 export async function geocode(q) {
-  const r = await j(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=tr`);
+  const r = await j(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=${LANG}`);
   return (r.results || []).map((x) => ({ name: x.name, lat: x.latitude, lon: x.longitude, tz: x.timezone, country: x.country }));
 }
 async function weather() {

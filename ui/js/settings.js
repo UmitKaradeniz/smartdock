@@ -29,6 +29,7 @@ export function openSettings(tab = 'look') {
     root.innerHTML = `<div class="picker"><div class="side"></div><div class="scroll main" style="padding:4px 18px 18px;height:470px"></div></div>`;
     const side = root.querySelector('.side'), main = root.querySelector('.main');
     side.append(h('div', { class: 'sect', style: { padding: '6px 10px' } }, $t('Ayarlar')));
+    root.append(h('button', { class: 'ibtn pclose', title: $t('Kapat'), html: icon('close', 15), onclick: () => { blip(); closePanel(); } }));
     const show = (t) => {
       side.querySelectorAll('.cat').forEach((c) => c.classList.toggle('on', c.dataset.t === t));
       main.innerHTML = '';
@@ -68,6 +69,7 @@ export function openSettings(tab = 'look') {
         row($t('Görev çubuğu tarzı'), sw('bar'), $t('Dock ekran kenarına yaslanır, tam genişlikte ve hep açık durur.'));
         row($t('Pencereler dock\'a taşmasın'), sw('reserve'), $t('Ekranı kaplayan pencereler dock\'un üstünde durur.'));
         row($t('Otomatik gizle'), seg('autoHide', [['off', $t('Kapalı')], ['smart', $t('Akıllı')], ['always', $t('Her zaman')]]), $t('Akıllı: bir pencere dock\'un yerini kaplayınca kenara kayar; fareyi ekran kenarına götürünce geri gelir. Açıkken pencerelere yer ayrılmaz.'));
+        row($t('Dock\'ta ayar düğmesi'), sw('settingsButton'), $t('Kapalıyken ayarlar sağ tık menüsünden açılır.'));
         row($t('Mac tarzı büyütme'), sw('magnify'));
         row($t('Büyütme hızı'), seg('magSpeed', [['slow', $t('Yavaş')], ['normal', $t('Normal')], ['fast', $t('Hızlı')]]));
         row($t('Windows ile başlat'), sw('autostart', (v) => invoke('autostart', { enable: v })));
@@ -106,7 +108,7 @@ export function openSettings(tab = 'look') {
         const gh = h('input', { value: cfg.ghUser, placeholder: $t('kullanıcı adı'), style: { width: '180px' } });
         gh.onchange = () => set('ghUser', gh.value.trim());
         row($t('GitHub kullanıcı adı'), gh, $t('Herkese açık katkı ızgarası için; token gerekmez.'));
-        row($t('Claude limitleri'), h('span', { class: 'mut' }, $t('Claude masaüstü / Claude Code')), $t('Claude masaüstünün kendi kaydettiği yüzde okunur; Claude Code CLI girişi varsa sıfırlanma saatleri de gelir.'));
+        row($t('Claude limitleri'), h('span', { class: 'mut' }, $t('Claude masaüstü / Claude Code')), $t('Claude masaüstünün kaydı okunur; eskiyse Claude Code’un /usage komutu sorulur.'));
         row($t('Antigravity limitleri'), h('span', { class: 'mut' }, $t('Kapalı')), $t('Google kuralları gereği okunmuyor; resmî kota API’si yok.'));
         row('ChatGPT limitleri', h('span', { class: 'mut' }, $t('Codex CLI oturumu')), $t('\'codex login\' ile giriş yaptıysan otomatik okunur.'));
         const cr = h('input', { value: cfg.crypto.join(', '), style: { width: '200px' } });
