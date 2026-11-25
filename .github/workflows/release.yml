@@ -1,0 +1,83 @@
+# Builds the Windows installer on GitHub's own runners when a version tag (v1.2.3) is pushed,
+# signs it through SignPath when the project is set up there, and attaches it to a release.
+# Building in CI also means nothing from a developer's PC (user name, paths) ends up in it.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      # signing runs only once SignPath has approved the project and the token is saved as a secret
+      HAS_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Check UI scripts
+        shell: bash
+        run: for f in ui/js/*.js ui/js/lang/*.js; do node --check "$f"; done
+
+      - name: Build installer
+        run: npx tauri build
+
+      - name: Collect installer
+        id: setup
+        shell: bash
+        run: |
+          f=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          mkdir -p out && cp "$f" out/
+          echo "name=$(basename "$f")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload unsigned installer
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned
+          path: out/*.exe
+          if-no-files-found: error
+
+      - name: Sign with SignPath
+        if: env.HAS_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Pick installer to publish
+        shell: bash
+        run: |
+          mkdir -p publish
+          if [ -d signed ]; then cp signed/*.exe publish/; else cp out/*.exe publish/; fi
+          ls -la publish
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: publish/*.exe
+          generate_release_notes: true

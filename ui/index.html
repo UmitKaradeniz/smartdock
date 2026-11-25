@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>smartdock</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="t-midnight s-M">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="lens" x="0" y="0" width="100" height="100" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feImage href="" x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="map"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="soft"/>
+      <feDisplacementMap in="soft" in2="map" scale="34" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+  <div id="stage"></div>
+  <div id="layer"></div>
+  <div id="peek" title="Masaüstünü göster"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
