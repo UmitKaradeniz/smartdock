@@ -324,6 +324,17 @@ unsafe extern "system" fn on_foreground(_: windows::Win32::UI::Accessibility::HW
         LAST_FG.store(v, Ordering::SeqCst);
     }
 }
+/// Connected monitors, in the order the monitor setting counts them.
+#[tauri::command]
+fn monitors(app: AppHandle) -> Vec<Value> {
+    let Some(win) = app.get_webview_window("dock") else { return vec![] };
+    let main = win.primary_monitor().ok().flatten().map(|m| *m.position());
+    win.available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| json!({"w": m.size().width, "h": m.size().height, "primary": Some(*m.position()) == main}))
+        .collect()
+}
 #[tauri::command]
 fn set_geometry(app: AppHandle, w: f64, h: f64, top: bool, reserve: f64, monitor: Option<usize>) {
     let Some(win) = app.get_webview_window("dock") else { return };
@@ -341,7 +352,10 @@ fn set_geometry(app: AppHandle, w: f64, h: f64, top: bool, reserve: f64, monitor
     let pw = if w <= 0.0 { mw } else { ((w * sf).round() as i32).min(mw) };
     let ph = ((h * sf).round() as i32).min(mh * 9 / 10);
     let x = mx + (mw - pw) / 2;
-    let y = if top { my } else { my + mh - ph };
+    // a Windows taskbar that stays visible keeps the edge; the dock sits next to it
+    let rect = windows::Win32::Foundation::RECT { left: mx, top: my, right: mx + mw, bottom: my + mh };
+    let inset = shell::taskbar_inset(rect, top);
+    let y = if top { my + inset } else { my + mh - ph - inset };
     *TARGET.lock().unwrap() = Some([x, y, pw, ph]);
     DOCK_TOP.store(top, Ordering::SeqCst);
     unsafe {
@@ -1065,7 +1079,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_windows, activate_window, close_window, kill_pid, list_apps, launch, open_path, reveal, open_url,
-            press_start, toggle_desktop, tray_list, tray_click, qs_get, qs_set, bt_devices, storage_info, storage_scan, temps, lhm_start, set_geometry, set_hit, pass_click, set_autohide, set_taskbar, get_stats, get_top, media_get, media_cmd, radios_get, radio_set, volume_get,
+            press_start, monitors, toggle_desktop, tray_list, tray_click, qs_get, qs_set, bt_devices, storage_info, storage_scan, temps, lhm_start, set_geometry, set_hit, pass_click, set_autohide, set_taskbar, get_stats, get_top, media_get, media_cmd, radios_get, radio_set, volume_get,
             volume_set, screen_time, find_files, claude_usage, claude_cli_usage, claude_link_get, claude_link_set, codex_usage, antigravity_usage, http_text, load_config, save_config, notif_get,
             wallpaper_info, recycle_bin, autostart, lock_pc, set_live_glass, memory_low, quit
         ])

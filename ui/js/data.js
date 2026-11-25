@@ -42,6 +42,7 @@ export function initData() {
   bus.on('cfg:ics', () => refresh('ics'));
   bus.on('cfg:ghUser', () => refresh('gh'));
   bus.on('cfg:fx', () => refresh('fx'));
+  bus.on('cfg:crypto', () => refresh('crypto'));
 }
 
 // ---------- AI plan usage ----------
@@ -70,11 +71,46 @@ export function parseCliUsage(text, now = new Date()) {
   if (!five && !week) return null;
   return { five_hour: five, seven_day: week, seven_day_opus: win(/Current week \((?!all)[^)]*\):\s*([\d.]+)% used(?:[^\n]*?resets ([^\n]*))?/) };
 }
+// ---------- weekly run-out forecast ----------
+const HOUR = 36e5, WEEK = 168 * HOUR;
+// hours of "usual pace" mixed into this week's own average; picked by backtesting a month of records
+const PRIOR_HOURS = 48;
+/** Usual pace (% per hour) of up to four earlier weeks; null when none was recorded well enough. */
+export function usualPace(samples, reset) {
+  const rates = [];
+  for (let n = 1; n <= 4; n++) {
+    const end = reset - n * WEEK, start = end - WEEK;
+    const a = (samples || []).filter(([t]) => t > start && t <= end);
+    if (!a.length) continue;
+    const full = a.find(([, v]) => v >= 99);
+    if (full) rates.push(100 / Math.max(24, (full[0] - start) / HOUR)); // a used-up week: pace until it ran out
+    else if (end - a.at(-1)[0] < 24 * HOUR) rates.push(a.at(-1)[1] / 168); // otherwise only if its end was seen
+  }
+  return rates.length ? rates.reduce((x, y) => x + y) / rates.length : null;
+}
+/** Where a weekly window is heading: { state: full|early|ok|edge|out, elapsed, endPct, runOut }. */
+export function weekForecast(w, now = Date.now()) {
+  if (!w?.reset || w.pct == null || w.reset <= now) return null;
+  // measured when the number was read, not now: an old reading must not look like a slow week
+  const at = Math.min(now, w.at || now), start = w.reset - WEEK;
+  const hours = (at - start) / HOUR, elapsed = Math.max(0, Math.min(1, (now - start) / WEEK));
+  if (w.pct >= 100) return { state: 'full', elapsed, endPct: 100, runOut: null };
+  const prior = w.prior ?? null;
+  // without earlier weeks the first day says nothing (one busy hour would look like a short week)
+  if (hours <= 1 || (prior == null && hours < 24)) return { state: 'early', elapsed, endPct: null, runOut: null };
+  const rate = prior == null ? w.pct / hours : (w.pct + prior * PRIOR_HOURS) / (hours + PRIOR_HOURS);
+  const endPct = w.pct + rate * ((w.reset - at) / HOUR);
+  // the estimate is off by about a day mid-week, so close calls are not called either way
+  const state = endPct < 90 ? 'ok' : endPct < 110 ? 'edge' : 'out';
+  return { state, elapsed, endPct, runOut: state === 'out' ? new Date(Math.max(now, at + ((100 - w.pct) / rate) * HOUR)) : null };
+}
+
 // local records older than this are checked against the CLI
 const CLAUDE_FRESH = 6 * 60e3;
 let cliSeen = null;
 async function claude() {
   let r = await invoke('claude_usage').catch((e) => ({ error: e }));
+  const history = r.week;
   if (!(Date.now() - r.at < CLAUDE_FRESH)) {
     const usage = await invoke('claude_cli_usage').then(parseCliUsage).catch(() => null);
     if (usage) cliSeen = { src: 'cli', at: Date.now(), usage };
@@ -83,10 +119,18 @@ async function claude() {
   if (r.error) throw r.error;
   const u = r.usage || {};
   const win = (o) => (o ? { pct: Math.round(o.utilization ?? 0), reset: o.resets_at ? new Date(o.resets_at) : null } : null);
+  const weekly = win(u.seven_day);
+  // the desktop record has no reset times; the CLI's still hold until they pass
+  const session = win(u.five_hour);
+  for (const [w, k] of [[session, 'five_hour'], [weekly, 'seven_day']]) {
+    const seen = cliSeen?.usage[k]?.resets_at;
+    if (w && !w.reset && seen && new Date(seen) > Date.now()) w.reset = new Date(seen);
+  }
+  if (weekly) Object.assign(weekly, { at: r.at, prior: weekly.reset ? usualPace(history, +weekly.reset) : null });
   const age = Math.max(0, Math.round((Date.now() - r.at) / 60000));
   const src = r.src === 'desktop' ? $t('Claude masaüstü kaydı') : $t('Claude Code');
   const note = `${src} · ${age < 1 ? $t('şimdi') : age + $t(' dk önce')}${r.src === 'desktop' && age > 20 ? $t(' · eski olabilir') : ''}`;
-  return { plan: r.plan || '', note, at: r.at, src: r.src, session: win(u.five_hour), weekly: win(u.seven_day), opus: win(u.seven_day_opus) || win(u.seven_day_sonnet) };
+  return { plan: r.plan || '', note, at: r.at, src: r.src, session, weekly, opus: win(u.seven_day_opus) || win(u.seven_day_sonnet) };
 }
 // Antigravity: per-model remaining fraction; show the tightest Gemini and Claude model.
 async function antigravity() {

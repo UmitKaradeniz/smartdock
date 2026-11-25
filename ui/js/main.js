@@ -90,7 +90,7 @@ async function relayout(patch) {
   const dr = dock.getBoundingClientRect();
   // the wallpaper layer and lens follow the dock's size and zoom (tiles fill in after boot)
   const gk = `${dock.style.zoom}|${Math.round(dr.width)}|${Math.round(dr.height)}`;
-  if (gk !== glassKey) { glassKey = gk; updateGlass(dock); }
+  if (gk !== glassKey) { glassKey = gk; updateGlass(dock); repositionPanel(); }
   // The native window never resizes for panels, toasts or tile width changes: a transparent
   // WebView2 shows its previous frame at the top of a window that just grew, so the dock
   // flashed up the screen. The window is monitor-wide and tall enough for the largest panel;
@@ -107,6 +107,8 @@ async function relayout(patch) {
       () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
     );
     await geoBusy;
+    // the window moved: the watched screen rect must be sent again even if nothing else changed
+    lastAh = '';
     updateGlass(dock);
     repositionPanel();
   }
@@ -129,6 +131,7 @@ function hitRects(rest = false) {
   }
   const d = geo.d;
   const ahKey = `${autoHide()}|${geoKey}|${[d.left, d.top, d.right, d.bottom].map(Math.round)}`;
+  if (autoHide() === 'off') covered = false; // an old report must not hide the dock when re-enabled
   if (ahKey !== lastAh) { lastAh = ahKey; invoke('set_autohide', { mode: { off: 0, smart: 1, always: 2 }[autoHide()], rect: [d.left, d.top, d.right, d.bottom] }); }
   const rects = [];
   if (lay.hidden) {
@@ -379,6 +382,8 @@ async function boot() {
   if (!cfg._floatV2) { cfg.bar = false; cfg._floatV2 = true; save(); }
   setWidgets(widgets);
   initData();
+  // before the first layout: where the dock sits depends on whether the taskbar stays visible
+  await invoke('set_taskbar', { hidden: cfg.hideTaskbar }).catch((e) => console.warn('taskbar', e));
   buildDock();
   applyLook();
   await initGlass(() => dock);
@@ -386,8 +391,7 @@ async function boot() {
   if (!cfg.pinned.length && !cfg._pinnedOnce) { set('pinned', defaultPins(list)); set('_pinnedOnce', true); }
   renderItems();
   updateGlass(dock);
-  invoke('set_taskbar', { hidden: cfg.hideTaskbar });
-  invoke('set_live_glass', { on: !!cfg.liveGlass });
+  applyLiveGlass();
   if (cfg.autostart) invoke('autostart', { enable: true });
   initUpdate();
 
@@ -395,16 +399,20 @@ async function boot() {
   bus.on('cfg:wsize', renderItems);
   bus.on('cfg:wtune', renderItems);
   bus.on('collapse', setCollapsed);
-  bus.on('cfg:liveGlass', (v) => invoke('set_live_glass', { on: !!v }));
-  for (const k of ['theme', 'accent', 'size', 'radius', 'position', 'monitor', 'bar', 'liveGlass', 'settingsButton']) bus.on('cfg:' + k, () => { geoKey = ''; applyLook(); });
+  for (const k of ['liveGlass', 'theme']) bus.on('cfg:' + k, applyLiveGlass);
+  // relayout() itself notices when the native window or the reservation has to change; forcing
+  // it here re-registered the reservation on every step of a slider
+  for (const k of ['theme', 'accent', 'size', 'radius', 'position', 'monitor', 'bar', 'liveGlass', 'settingsButton', 'magnify']) bus.on('cfg:' + k, applyLook);
   listen('wins', () => { if (cfg.liveGlass) refreshBackdrop(dock); });
-  bus.on('cfg:reserve', () => { geoKey = ''; relayout(); });
-  bus.on('cfg:autoHide', () => { geoKey = ''; relayout(); });
+  for (const k of ['reserve', 'autoHide', 'peek']) bus.on('cfg:' + k, () => relayout());
   listen('cover', (v) => { covered = v; evalHide(); });
   lastAh = ''; setHit(); // ask again now that someone listens: the first report came before boot
-  bus.on('cfg:peek', () => relayout());
-  bus.on('cfg:hideTaskbar', (v) => invoke('set_taskbar', { hidden: v }));
-  bus.on('cfg:clock24', () => renderAgain());
+  bus.on('cfg:hideTaskbar', async (v) => {
+    await invoke('set_taskbar', { hidden: v });
+    // the dock moves next to a visible taskbar, once Explorer has brought it back
+    setTimeout(() => { geoKey = ''; relayout(); }, 400);
+  });
+  for (const k of ['clock24', 'seconds']) bus.on('cfg:' + k, renderAgain);
   bus.on('toast', showToast);
   bus.on('alarm', (text) => { const s = cfg.sounds; cfg.sounds = true; blip('ok'); setTimeout(() => blip('ok'), 180); cfg.sounds = s; toast(text); });
   listen('hotkey', () => bus.emit('hotkey'));
@@ -418,6 +426,8 @@ async function boot() {
   addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
   setInterval(() => getApps(true), 10 * 60e3);
 }
+// live capture only for the styles that show it: it also hides the dock from screen recordings
+const applyLiveGlass = () => invoke('set_live_glass', { on: !!cfg.liveGlass && cfg.theme !== 'black' && cfg.theme !== 'white' });
 function renderAgain() {
   for (const [, m] of mounted) { try { m.dispose?.(); } catch {} m.el.remove(); }
   mounted.clear();

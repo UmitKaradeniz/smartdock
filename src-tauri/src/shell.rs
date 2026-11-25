@@ -20,25 +20,48 @@ static APPBAR: Mutex<Option<isize>> = Mutex::new(None);
 static ORIG_STATE: Mutex<Option<u32>> = Mutex::new(None);
 /// Last requested reservation (hwnd, physical px, top edge), re-asserted by check_appbar.
 static WANT: Mutex<Option<(isize, i32, bool)>> = Mutex::new(None);
-static LAST_MON: Mutex<Option<RECT>> = Mutex::new(None);
+/// One appbar operation at a time: the watcher must not re-register what is being removed.
+static OP: Mutex<()> = Mutex::new(());
 static APPBAR_FS: AtomicBool = AtomicBool::new(false);
 
-fn tray_windows() -> Vec<HWND> {
+/// Windows of a taskbar class, split into Explorer's and ours: the tray icon reader (tray.rs)
+/// runs a look-alike "Shell_TrayWnd" that keeps itself on top, so the first match is often ours.
+fn of_class(cls: PCWSTR, ours: bool) -> Vec<HWND> {
     let mut v = Vec::new();
     unsafe {
-        if let Ok(h) = FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null()) {
-            v.push(h);
-        }
         let mut prev = HWND::default();
-        while let Ok(h) = FindWindowExW(HWND::default(), prev, w!("Shell_SecondaryTrayWnd"), PCWSTR::null()) {
+        while let Ok(h) = FindWindowExW(HWND::default(), prev, cls, PCWSTR::null()) {
             if h.0.is_null() {
                 break;
             }
-            v.push(h);
+            let mut pid = 0u32;
+            GetWindowThreadProcessId(h, Some(&mut pid));
+            if (pid == std::process::id()) == ours {
+                v.push(h);
+            }
             prev = h;
         }
     }
     v
+}
+
+/// Explorer's taskbars, primary first.
+fn tray_windows() -> Vec<HWND> {
+    let mut v = of_class(w!("Shell_TrayWnd"), false);
+    v.extend(of_class(w!("Shell_SecondaryTrayWnd"), false));
+    v
+}
+
+/// SHAppBarMessage goes to the topmost "Shell_TrayWnd". When that is our own look-alike,
+/// Windows never applies the reservation, so it steps behind Explorer's for the call (its
+/// own timer brings it back within 100 ms).
+fn appbar_msg(msg: u32, d: &mut APPBARDATA) -> usize {
+    unsafe {
+        for spy in of_class(w!("Shell_TrayWnd"), true) {
+            let _ = SetWindowPos(spy, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        SHAppBarMessage(msg, d)
+    }
 }
 
 fn abd(hwnd: HWND) -> APPBARDATA {
@@ -51,7 +74,7 @@ pub fn hide_taskbar(marker: &std::path::Path) {
         let trays = tray_windows();
         let Some(main) = trays.first().copied() else { return };
         let mut d = abd(main);
-        let cur = SHAppBarMessage(ABM_GETSTATE, &mut d) as u32;
+        let cur = appbar_msg(ABM_GETSTATE, &mut d) as u32;
         // Remember the user's original state once, across crashes, in a marker file.
         let orig = match std::fs::read_to_string(marker).ok().and_then(|s| s.trim().parse::<u32>().ok()) {
             Some(v) => v,
@@ -62,7 +85,7 @@ pub fn hide_taskbar(marker: &std::path::Path) {
         };
         *ORIG_STATE.lock().unwrap() = Some(orig);
         d.lParam = LPARAM((cur | ABS_AUTOHIDE) as isize);
-        SHAppBarMessage(ABM_SETSTATE, &mut d);
+        appbar_msg(ABM_SETSTATE, &mut d);
         for t in trays {
             let _ = ShowWindow(t, SW_HIDE);
         }
@@ -85,22 +108,51 @@ pub fn guard_taskbar() {
 }
 
 pub fn restore_taskbar(marker: &std::path::Path) {
-    if !TASKBAR_HIDDEN.swap(false, Ordering::SeqCst) {
+    // a marker without the flag: an earlier run was killed while the taskbar was hidden
+    let saved = std::fs::read_to_string(marker).ok().and_then(|s| s.trim().parse::<u32>().ok());
+    if !TASKBAR_HIDDEN.swap(false, Ordering::SeqCst) && saved.is_none() {
         return;
     }
     unsafe {
         let trays = tray_windows();
         if let Some(main) = trays.first().copied() {
             let mut d = abd(main);
-            let orig = ORIG_STATE.lock().unwrap().unwrap_or(0);
+            let orig = ORIG_STATE.lock().unwrap().or(saved).unwrap_or(0);
             d.lParam = LPARAM(orig as isize);
-            SHAppBarMessage(ABM_SETSTATE, &mut d);
+            appbar_msg(ABM_SETSTATE, &mut d);
         }
         for t in trays {
             let _ = ShowWindow(t, SW_SHOW);
         }
     }
     let _ = std::fs::remove_file(marker);
+}
+
+/// Height a visible, always-shown Windows taskbar takes on that edge of the monitor (0 while
+/// the dock hides it or it hides itself): the dock and its reservation stack next to it.
+pub fn taskbar_inset(mon: RECT, top: bool) -> i32 {
+    if TASKBAR_HIDDEN.load(Ordering::SeqCst) {
+        return 0;
+    }
+    for t in tray_windows() {
+        unsafe {
+            let mut d = abd(t);
+            if appbar_msg(ABM_GETSTATE, &mut d) as u32 & ABS_AUTOHIDE != 0 || !IsWindowVisible(t).as_bool() {
+                return 0;
+            }
+            let mut r = RECT::default();
+            if GetWindowRect(t, &mut r).is_err() {
+                continue;
+            }
+            let h = r.bottom - r.top;
+            let same_mon = r.left < mon.right && r.right > mon.left && r.top < mon.bottom && r.bottom > mon.top;
+            let on_edge = if top { r.top <= mon.top + 1 } else { r.bottom >= mon.bottom - 1 };
+            if same_mon && on_edge && h < (mon.bottom - mon.top) / 3 {
+                return h;
+            }
+        }
+    }
+    0
 }
 
 pub fn monitor_rect(hwnd: HWND) -> RECT {
@@ -163,20 +215,14 @@ fn appbar_window() -> Option<HWND> {
     Some(HWND(h as *mut _))
 }
 
-unsafe fn apply_work_area(mon: RECT, px: i32, top: bool) {
-    let work = RECT {
-        left: mon.left,
-        top: if top { mon.top + px } else { mon.top },
-        right: mon.right,
-        bottom: if top { mon.bottom } else { mon.bottom - px },
-    };
-    let _ = SystemParametersInfoW(SPI_SETWORKAREA, 0, Some(&work as *const _ as *mut _), SPIF_SENDCHANGE);
-    *LAST_MON.lock().unwrap() = Some(mon);
-}
-
 /// Reserves `px` physical pixels at the top or bottom edge of the dock's monitor so maximized
 /// windows stop right at the dock.
 pub fn set_appbar(dock: HWND, px: i32, top: bool) {
+    let _op = OP.lock().unwrap();
+    register(dock, px, top);
+}
+
+fn register(dock: HWND, px: i32, top: bool) {
     *WANT.lock().unwrap() = Some((dock.0 as isize, px, top));
     let Some(ab) = appbar_window() else { return };
     unsafe {
@@ -186,7 +232,7 @@ pub fn set_appbar(dock: HWND, px: i32, top: bool) {
         if !ok_new {
             d.uCallbackMessage = WM_USER + 77;
             // fails while Explorer is still starting or after an unclean exit; check_appbar retries
-            if SHAppBarMessage(ABM_NEW, &mut d) != 0 {
+            if appbar_msg(ABM_NEW, &mut d) != 0 {
                 *reg = Some(ab.0 as isize);
                 ok_new = true;
             } else {
@@ -195,7 +241,13 @@ pub fn set_appbar(dock: HWND, px: i32, top: bool) {
         }
         drop(reg);
         if ok_new {
-            let m = monitor_rect(dock);
+            let mut m = monitor_rect(dock);
+            let inset = taskbar_inset(m, top);
+            if top {
+                m.top += inset;
+            } else {
+                m.bottom -= inset;
+            }
             d.uEdge = if top { ABE_TOP } else { ABE_BOTTOM };
             d.rc = m;
             if top {
@@ -203,7 +255,7 @@ pub fn set_appbar(dock: HWND, px: i32, top: bool) {
             } else {
                 d.rc.top = m.bottom - px;
             }
-            SHAppBarMessage(ABM_QUERYPOS, &mut d);
+            appbar_msg(ABM_QUERYPOS, &mut d);
             // QUERYPOS stacks us beside the (hidden, auto-hide) taskbar; the dock lives on the edge
             // itself, so the work area must end at edge +- px
             if top {
@@ -213,20 +265,11 @@ pub fn set_appbar(dock: HWND, px: i32, top: bool) {
                 d.rc.top = m.bottom - px;
                 d.rc.bottom = m.bottom;
             }
-            SHAppBarMessage(ABM_SETPOS, &mut d);
+            appbar_msg(ABM_SETPOS, &mut d);
             let r = d.rc;
             // the appbar window covers what it reserves, as the protocol expects
             let _ = SetWindowPos(ab, HWND_BOTTOM, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE | SWP_SHOWWINDOW);
             ablog(&format!("SETPOS px={px} top={top} rc=({},{},{},{})", r.left, r.top, r.right, r.bottom));
-        }
-        let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
-        if GetMonitorInfoW(MonitorFromWindow(dock, MONITOR_DEFAULTTONEAREST), &mut mi).as_bool() {
-            let (mon, work) = (mi.rcMonitor, mi.rcWork);
-            let bad = if top { work.top < mon.top + px - 1 } else { work.bottom > mon.bottom - px + 1 };
-            if bad {
-                apply_work_area(mon, px, top);
-                ablog(&format!("SPI_SETWORKAREA px={px} top={top}"));
-            }
         }
     }
 }
@@ -247,6 +290,8 @@ fn ablog(line: &str) {
 /// Re-applies the reservation when the work area no longer stops at the dock: a plain SETPOS
 /// first (Explorer applies it asynchronously), a fresh registration only if that keeps failing.
 pub fn check_appbar() {
+    // busy: the layout is changing right now, look again next time
+    let Ok(_op) = OP.try_lock() else { return };
     let Some((h, px, top)) = *WANT.lock().unwrap() else { return };
     unsafe {
         let dock = HWND(h as *mut _);
@@ -255,7 +300,8 @@ pub fn check_appbar() {
             return;
         }
         let (mon, work) = (mi.rcMonitor, mi.rcWork);
-        let bad = if top { work.top < mon.top + px - 1 } else { work.bottom > mon.bottom - px + 1 };
+        let need = px + taskbar_inset(mon, top);
+        let bad = if top { work.top < mon.top + need - 1 } else { work.bottom > mon.bottom - need + 1 };
         if !bad {
             if BAD.swap(0, Ordering::SeqCst) != 0 {
                 ablog(&format!("ok: work=({},{})", work.top, work.bottom));
@@ -268,11 +314,11 @@ pub fn check_appbar() {
             // registration lost (Explorer restart, logon race): register from scratch
             if let Some(ab) = appbar_window() {
                 let mut d = abd(ab);
-                SHAppBarMessage(ABM_REMOVE, &mut d);
+                appbar_msg(ABM_REMOVE, &mut d);
             }
             forget_appbar();
         }
-        set_appbar(dock, px, top);
+        register(dock, px, top);
     }
 }
 
@@ -282,18 +328,12 @@ pub fn forget_appbar() {
 }
 
 pub fn remove_appbar() {
+    let _op = OP.lock().unwrap();
     *WANT.lock().unwrap() = None;
     let mut reg = APPBAR.lock().unwrap();
     if let Some(h) = reg.take() {
-        unsafe {
-            let mut d = abd(HWND(h as *mut _));
-            SHAppBarMessage(ABM_REMOVE, &mut d);
-        }
-    }
-    if let Some(mon) = LAST_MON.lock().unwrap().take() {
-        unsafe {
-            let _ = SystemParametersInfoW(SPI_SETWORKAREA, 0, Some(&mon as *const _ as *mut _), SPIF_SENDCHANGE);
-        }
+        let mut d = abd(HWND(h as *mut _));
+        appbar_msg(ABM_REMOVE, &mut d);
     }
 }
 
@@ -448,5 +488,37 @@ pub fn wallpaper_path() -> Option<String> {
 pub fn post_close(h: isize) {
     unsafe {
         let _ = PostMessageW(HWND(h as *mut _), WM_CLOSE, WPARAM(0), LPARAM(0));
+    }
+}
+
+/// Touches the real work area for a few seconds: cargo test appbar_with_tray_spy -- --ignored
+#[cfg(test)]
+mod live {
+    use super::*;
+    use std::{thread::sleep, time::Duration};
+    #[test]
+    #[ignore]
+    fn appbar_with_tray_spy() {
+        let dir = std::env::temp_dir().join("sd-probe");
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = crate::DATA.set(dir);
+        crate::tray::start(|| {});
+        sleep(Duration::from_millis(1500));
+        let d = unsafe { GetShellWindow() };
+        let work = || unsafe {
+            let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+            let _ = GetMonitorInfoW(MonitorFromWindow(d, MONITOR_DEFAULTTONEAREST), &mut mi);
+            mi.rcMonitor.bottom - mi.rcWork.bottom
+        };
+        let free = work();
+        for gap in [1500u64, 0, 0] {
+            set_appbar(d, 60, false);
+            sleep(Duration::from_millis(1500));
+            assert_eq!(work(), 60 + taskbar_inset(monitor_rect(d), false), "reservation not applied");
+            remove_appbar();
+            sleep(Duration::from_millis(gap));
+        }
+        sleep(Duration::from_millis(1500));
+        assert_eq!(work(), free, "reservation not released");
     }
 }

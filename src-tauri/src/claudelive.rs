@@ -119,10 +119,17 @@ pub fn cli_usage() -> Result<String, String> {
 /// Newest reading of either source, in the shape the UI expects (resets_at in ms).
 pub fn usage() -> Result<Value, String> {
     let live = live_path().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str::<Value>(&s).ok());
-    let desk = desktop_history()
+    let samples = desktop_history()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str::<Value>(&s).ok())
-        .and_then(|h| h["samples"].as_array().and_then(|a| a.last().cloned()));
+        .and_then(|h| h["samples"].as_array().cloned())
+        .unwrap_or_default();
+    let desk = samples.last().cloned();
+    // [time, weekly %] of this account: the forecast learns the usual pace of earlier weeks
+    let week: Vec<Value> = match &desk {
+        Some(d) => samples.iter().filter(|s| s["org"] == d["org"] && s["u"]["sd"].is_number()).map(|s| json!([s["t"], s["u"]["sd"]])).collect(),
+        None => vec![],
+    };
     let lt = live.as_ref().and_then(|v| v["t"].as_u64()).unwrap_or(0);
     let dt = desk.as_ref().and_then(|v| v["t"].as_u64()).unwrap_or(0);
     if lt == 0 && dt == 0 {
@@ -138,10 +145,10 @@ pub fn usage() -> Result<Value, String> {
             let reset = w["resets_at"].as_f64().map(|s| (s * 1000.0) as u64);
             json!({"utilization": w["used_percentage"], "resets_at": reset})
         };
-        Ok(json!({"src": "code", "at": lt, "usage": {"five_hour": win("five_hour"), "seven_day": win("seven_day")}}))
+        Ok(json!({"src": "code", "at": lt, "week": week, "usage": {"five_hour": win("five_hour"), "seven_day": win("seven_day")}}))
     } else {
         let s = desk.unwrap();
-        Ok(json!({"src": "desktop", "at": dt, "usage": {"five_hour": {"utilization": s["u"]["fh"]}, "seven_day": {"utilization": s["u"]["sd"]}}}))
+        Ok(json!({"src": "desktop", "at": dt, "week": week, "usage": {"five_hour": {"utilization": s["u"]["fh"]}, "seven_day": {"utilization": s["u"]["sd"]}}}))
     }
 }
 

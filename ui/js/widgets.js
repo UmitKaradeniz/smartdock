@@ -3,7 +3,7 @@ import { invoke, listen, use, refresh, onTick, cfg, set, h, esc, pad2, fmtDur, f
 import { icon, wxIcon, wxKind, WX_TEXT, MARK } from './icons.js';
 import { openPanel, closePanel, menu } from './panels.js';
 import { mountApps, apps } from './apps.js';
-import { timers, pomoStart, pomoReset, timerStart, timerReset, swToggle, swReset, swValue, eventsBetween, addEvent, removeEvent, rates } from './data.js';
+import { timers, pomoStart, pomoReset, timerStart, timerReset, swToggle, swReset, swValue, eventsBetween, weekForecast, addEvent, removeEvent, rates } from './data.js';
 import { openSearch } from './search.js';
 import { $t, LOCALE, LANG } from './i18n.js';
 
@@ -190,7 +190,7 @@ function openUsage(anchor, name, mark, svc, hint) {
       if (!u) return;
       root.querySelector('.plan').textContent = u.plan ? String(u.plan).toUpperCase() : '';
       const lb = u.labels || [$t('Oturum (5 saat)'), $t('Haftalık')];
-      const row = (k, w) => w ? `<div class="sect">${k}</div><div class="row"><div class="${barCls(w.pct)} grow" style="height:7px"><i style="width:${w.pct}%"></i></div><b style="min-width:38px;text-align:right">${w.pct}%</b></div><div class="sub mut" style="margin-top:5px">${w.reset ? `${$t('Yenilenme')}: ${w.reset.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' })} · ${until(w.reset)} ${$t('sonra')}` : ''}${forecast(w)}</div>` : '';
+      const row = (k, w) => w ? `<div class="sect">${k}</div><div class="row"><div class="${barCls(w.pct)} grow" style="height:7px"><i style="width:${w.pct}%"></i></div><b style="min-width:38px;text-align:right">${w.pct}%</b></div><div class="sub mut" style="margin-top:5px">${w.reset ? `${$t('Yenilenme')}: ${w.reset.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' })} · ${until(w.reset)}${w.reset - Date.now() > 0 && w.reset - Date.now() < 86400e3 ? ` ${$t('sonra')}` : ''}` : ''}${forecast(w)}</div>` : '';
       body.innerHTML = row(lb[0], u.session) + row(lb[1], u.weekly) + paceChart(u.weekly) + row($t('Opus / Sonnet haftalık'), u.opus) + (u.note ? `<p class="sub mut" style="margin-top:10px">${esc(u.note)}</p>` : '');
       if (svc === 'claude') claudeLink(body);
     });
@@ -215,21 +215,26 @@ async function claudeLink(body) {
   try { draw(await invoke('claude_link_get')); } catch { box.remove(); }
 }
 function paceChart(w) {
-  if (!w?.reset || w.pct == null) return '';
-  const span = 7 * 86400e3;
-  const rem = w.reset - Date.now();
-  const elapsed = Math.max(0, Math.min(1, 1 - rem / span));
-  if (elapsed <= 0.01) return '';
+  const f = weekForecast(w);
+  if (!f) return '';
+  const { state, elapsed, endPct, runOut } = f;
   const W = 270, H = 72;
   const x = elapsed * W, y = H - (Math.min(100, w.pct) / 100) * H;
-  const projPct = w.pct / elapsed;
-  const projX = w.pct > 0 ? Math.min(W, (100 / w.pct) * x) : W;
-  const projY = w.pct > 0 ? Math.max(0, H - (Math.min(100, projPct) / 100) * H) : H;
-  const col = projPct > 130 ? 'var(--bad)' : projPct > 100 ? 'var(--warn)' : 'var(--good)';
-  let label = $t('Haftalık tempo dengeli');
-  if (projPct > 100) {
-    const runOutDate = new Date(Date.now() + ((100 - w.pct) / (w.pct / (elapsed * span))));
-    label = `${$t('Bu hızla')} ${runOutDate.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' })} ${$t('biter')}`;
+  // dashed part: from today to the reset, or to the point where it reaches 100%
+  let projX = x, projY = y;
+  if (endPct > w.pct) {
+    const k = Math.min(1, (100 - w.pct) / (endPct - w.pct));
+    projX = x + (W - x) * k;
+    projY = H - ((w.pct + (endPct - w.pct) * k) / 100) * H;
+  }
+  const col = state === 'full' || endPct > 130 ? 'var(--bad)' : state === 'out' || state === 'edge' ? 'var(--warn)' : 'var(--good)';
+  let label = { full: $t('Haftalık limit doldu'), early: $t('Tahmin için henüz erken'), ok: $t('Haftalık tempo dengeli'), edge: $t('Sınırda: ucu ucuna') }[state];
+  if (runOut) {
+    // an exact minute would promise more than the estimate knows: day only while it is far off
+    const near = runOut - Date.now() < 36 * 3600e3;
+    const hour = new Date(Math.round(runOut / 3600e3) * 3600e3);
+    const when = near ? hour.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : runOut.toLocaleString(LOCALE, { weekday: 'long' });
+    label = `${$t('Tahmini bitiş')}: ~${when}`;
   }
   return `<div class="pace-box"><svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">
     <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="var(--line)" stroke-dasharray="3 3"/>
