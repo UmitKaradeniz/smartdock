@@ -5,6 +5,8 @@ import { SD, invoke, listen, cfg } from './core.js';
 const BLEED = 24;
 let wall = { url: '', w: 0, h: 0 };
 let lastKey = '';
+/** The desktop wallpaper as a loadable URL, '' when there is none (yet). */
+export const wallpaperUrl = () => wall.url;
 
 async function loadWall() {
   const info = await invoke('wallpaper_info');

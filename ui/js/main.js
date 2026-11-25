@@ -82,8 +82,10 @@ async function relayout(patch) {
   const avail = cfg.bar ? innerWidth - 120 : screen.availWidth - 48 - (cfg.magnify ? 140 : 0);
   const z0 = +dock.style.zoom || 1;
   // taskbar style spans the screen, so its content (not its box) decides the fit
-  const nat = cfg.bar ? [...dock.children].reduce((s, c) => s + (c.classList.contains('clip') ? 0 : c.getBoundingClientRect().width / z0 + 8), 0) : dock.getBoundingClientRect().width / z0;
-  const z = nat > avail ? avail / nat : 1;
+  // (layers that span the whole dock, like the glass clip and the rim halo, would feed back into its width)
+  const nat = cfg.bar ? [...dock.children].reduce((s, c) => s + (c.classList.contains('clip') || c.classList.contains('halo') ? 0 : c.getBoundingClientRect().width / z0 + 8), 0) : dock.getBoundingClientRect().width / z0;
+  // never below half size: a measuring mistake must not shrink the dock out of sight
+  const z = nat > avail ? Math.max(0.5, avail / nat) : 1;
   // hysteresis: small width changes must not rescale (and so shift) the whole dock
   if (z < z0 || z - z0 > 0.02) dock.style.zoom = z < 1 ? z.toFixed(3) : '';
   dock.style.width = cfg.bar ? innerWidth / (+dock.style.zoom || 1) + 'px' : '';

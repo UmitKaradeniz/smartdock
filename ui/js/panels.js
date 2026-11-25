@@ -58,8 +58,9 @@ export function place(el, anchor, w) {
   x = Math.max(8, Math.min(innerWidth - w - 8, x));
   el.style.left = x + 'px';
   const top = document.body.classList.contains('top');
-  if (top) el.style.top = dr.bottom + 10 + 'px';
-  else el.style.bottom = innerHeight - dr.top + 10 + 'px';
+  // clear the other edge: after the dock changes edge an old value would pin the panel to both
+  if (top) { el.style.top = dr.bottom + 10 + 'px'; el.style.bottom = ''; }
+  else { el.style.bottom = innerHeight - dr.top + 10 + 'px'; el.style.top = ''; }
   // short or highly scaled screens: the panel shrinks and scrolls instead of leaving the window
   const room = Math.max(160, Math.floor((top ? innerHeight - dr.bottom : dr.top) - 18));
   el.style.maxHeight = room + 'px';
