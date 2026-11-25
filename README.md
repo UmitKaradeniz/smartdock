@@ -1,73 +1,115 @@
-# smartdock
+<p align="center">
+  <img src="docs/hero.jpg" alt="smartdock: A widget dock for Windows 10/11 that replaces the taskbar" width="100%">
+</p>
 
-> **English:** A widget dock for Windows 10/11 that replaces the taskbar: apps with magnification, clock, weather, system stats, media, AI usage limits and more. Download the installer from [Releases](../../releases). The UI follows your Windows language (Turkish or English); change it under Settings › Appearance › Language. No account, no server, no telemetry.
+<p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/UmitKaradeniz/smartdock?style=flat-square&color=4f8cff" alt="Release"></a>
+  <a href="../../releases"><img src="https://img.shields.io/github/downloads/UmitKaradeniz/smartdock/total?style=flat-square&color=7a5cff" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0b1030?style=flat-square" alt="Windows 10 | 11">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/UmitKaradeniz/smartdock?style=flat-square&color=34d27b" alt="MIT"></a>
+</p>
 
+<p align="center">
+  <a href="../../releases/latest"><b>Download</b></a> · <a href="#build-from-source">Build from source</a>
+</p>
 
-Windows 10/11 için widget'lı, macOS tarzı bir dock. Görev çubuğunun yerine geçer: uygulamalar, saat, hava durumu, sistem durumu, medya, yapay zekâ kullanım limitleri ve daha fazlası. Tauri (Rust) ve sade HTML/CSS/JS ile yazıldı. Hesap yok, sunucu yok, telemetri yok.
+<p align="center"><b>English</b> · <a href="README.tr.md">Türkçe</a></p>
 
-## Kurulum (derlemeden)
+<p align="center">
+  <img src="docs/demo.gif" alt="smartdock demo" width="100%">
+</p>
 
-1. [Releases](../../releases) sayfasından `smartdock_x.y.z_x64-setup.exe` dosyasını indir.
-2. Çalıştır. Dosya imzasız olduğu için Windows SmartScreen uyarı verebilir: **Ek bilgi → Yine de çalıştır**.
-3. WebView2 yoksa kurulum onu kendisi indirir (internet gerekir).
+## Features
 
-Ayarlar `%APPDATA%\app.smartdock.dock\` klasöründe tutulur. Kaldırınca bu klasörü silersen her şey sıfırlanır.
+| | |
+|---|---|
+| **Replaces the taskbar** | Start button, pinned and running apps, magnification, unread badges, window previews |
+| **39 widgets** | Clocks and calendar, weather, system stats, quick settings, media, productivity, finance, GitHub |
+| **AI usage limits** | Usage limits for Claude, ChatGPT/Codex and Antigravity |
+| **Smart search** | `Alt+Space` for apps, files, math, currency conversion and optional AI answers |
+| **Five styles** | Midnight, Liquid Glass, iOS, Black and White, with your own accent color |
+| **Private** | No account, no server, no telemetry |
 
-## Kullanım
+## Panels
 
-- **Sağ tık → Boyutlandır...**: Her widget'ın ölçeğini ve genişliğini ayrı ayrı ayarlar.
-- **Sağ tık → Widget'lar...**: Widget ekler/çıkarır. Düzenleme modunda widget'lar sürüklenerek sıralanır.
-- **Sağ alt köşe**: Masaüstünü gösterir / pencereleri geri getirir.
-- **Ayarlar**: Stil, konum, otomatik gizleme, görev çubuğunu gizleme ve diğerleri.
+<table>
+  <tr><td colspan="2" align="center"><img src="docs/panel-screentime.png" alt="Screen time" width="680"></td></tr>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="docs/panel-usage.png" alt="Claude usage limits" width="340"></td>
+    <td width="50%" align="center" valign="top"><img src="docs/panel-search.png" alt="Smart search" width="340"></td>
+  </tr>
+</table>
 
-## Kaynaktan derleme
+## Styles
 
-Gerekenler: [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 18+, Visual Studio C++ Build Tools.
+<img src="docs/themes.jpg" alt="Midnight, Liquid Glass, iOS, Black and White styles" width="100%">
+
+## Install
+
+1. Download `smartdock_x.y.z_x64-setup.exe` from [Releases](../../releases).
+2. Run it. The file is unsigned, so Windows SmartScreen may warn you: **More info → Run anyway**.
+3. If WebView2 is missing, the installer downloads it (internet required).
+
+Settings live in `%APPDATA%\app.smartdock.dock\`. Delete that folder after uninstalling to reset everything.
+
+## Usage
+
+| Action | What it does |
+|---|---|
+| Right-click → **Resize...** | Sets each widget's scale and width |
+| Right-click → **Widgets...** | Adds or removes widgets; drag to reorder in edit mode |
+| Bottom-right corner | Shows the desktop / restores windows |
+| **Settings** | Style, position, auto-hide, hiding the taskbar and more |
+
+The UI follows your Windows language (English or Turkish); change it under **Settings › Appearance › Language**.
+
+## Build from source
+
+You need [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 18+ and Visual Studio C++ Build Tools.
 
 ```powershell
 npm install
-npx tauri dev                 # geliştirme
-npx tauri build --no-bundle   # sadece exe (src-tauri\target\release\smartdock.exe)
-powershell -ExecutionPolicy Bypass -File scripts\build-portable.ps1   # paylaşılabilir kurulum dosyası -> dist\
+npx tauri dev                 # development
+npx tauri build --no-bundle   # exe only (src-tauri\target\release\smartdock.exe)
+powershell -ExecutionPolicy Bypass -File scripts\build-portable.ps1   # shareable installer -> dist\
 ```
 
-`build-portable.ps1`, derleme makinesinin kullanıcı adını ve klasör yollarını exe'den temizler ve kontrol eder. Paylaşacağın kurulum dosyalarını bununla üret.
+`build-portable.ps1` strips the build machine's user name and folder paths from the exe and verifies it. Use it for installers you share.
 
-Proje yapısı:
+Built with Tauri (Rust) and plain HTML/CSS/JS:
 
-- `ui/`: Arayüz (`main.js` dock ve yerleşim, `widgets.js` widget'lar, `apps.js` uygulama şeridi, `settings.js` ayarlar).
-- `src-tauri/src/`: Windows tarafı (pencereler, appbar/çalışma alanı, otomatik gizleme, tepsi, medya, sensörler).
+- `ui/`: interface (`main.js` dock and layout, `widgets.js` widgets, `apps.js` app strip, `settings.js` settings)
+- `src-tauri/src/`: Windows side (windows, appbar/work area, auto-hide, tray, media, sensors)
 
-## Gizlilik ve ağ erişimi
+To add a language, create a file like `ui/js/lang/en.js` and add it to the list in `ui/js/i18n.js`.
 
-Uygulama yalnız kendi bilgisayarında çalışır. Dışarıya sadece şu istekleri atar:
+## Privacy and network access
 
-| Ne | Nereye | Ne zaman |
+The app runs on your own computer. These are its only outgoing requests:
+
+| What | Where | When |
 |---|---|---|
-| Hava durumu, şehir arama | open-meteo.com | Hava durumu widget'ı açıksa |
-| Yaklaşık konum (IP'den) | freeipapi.com, get.geojs.io, ipwho.is | Sadece Ayarlar'da şehir seçilmemişse |
-| Kripto fiyatları | coingecko.com | Kripto widget'ı açıksa |
-| Döviz kurları | open.er-api.com | Döviz widget'ı veya arama kutusunda çeviri yapılınca |
-| GitHub katkı grafiği | github-contributions-api.jogruber.de | GitHub widget'ı açıksa |
-| Yapay zekâ cevabı (arama kutusu) | text.pollinations.ai | Ayarlar'da yapay zekâ açıksa, sadece arama kutusuna yazılan soru gönderilir |
-| Claude kullanım limiti | Ağ isteği yok | Claude masaüstünün kaydı ve (bağlanırsa) Claude Code'un durum satırı yerelde okunur; giriş anahtarı kullanılmaz |
-| ChatGPT/Codex kullanım limiti | chatgpt.com | Codex widget'ı eklenmişse, o bilgisayardaki Codex oturumuyla |
+| Weather, city search | open-meteo.com | Weather widget is on |
+| Approximate location (from IP) | freeipapi.com, get.geojs.io, ipwho.is | Only if no city is set in Settings |
+| Crypto prices | coingecko.com | Crypto widget is on |
+| Exchange rates | open.er-api.com | Currency widget, or a conversion in search |
+| GitHub contribution graph | github-contributions-api.jogruber.de | GitHub widget is on |
+| AI answer (search box) | text.pollinations.ai | AI enabled in Settings; only the question you type is sent |
+| Update check | api.github.com | Update check enabled in Settings |
+| Claude usage limit | No request | Read locally from the Claude desktop record and (if linked) the Claude Code status line; no login key is used |
+| ChatGPT/Codex usage limit | chatgpt.com | Codex widget added, using the Codex session on that computer |
 
-## Dil
+## Releasing
 
-Arayüz Windows diline göre Türkçe ya da İngilizce açılır; Ayarlar › Görünüm › Dil'den değiştirilir. Çeviriler `ui/js/lang/en.js` dosyasında: anahtar Türkçe metin, değer çevirisi. Yeni dil eklemek için aynı yapıda bir dosya açıp `ui/js/i18n.js` içindeki listeye eklemek yeterli.
-
-## Sürüm yayınlama
-
-`v` ile başlayan bir etiket gönderince GitHub Actions kurulum dosyasını GitHub'ın kendi sunucusunda derleyip sürüme ekler:
+Pushing a tag that starts with `v` makes GitHub Actions build the installer and attach it to the release:
 
 ```powershell
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Önce `src-tauri/tauri.conf.json` ve `src-tauri/Cargo.toml` içindeki sürümü yükselt. İmzalama kuralları için [CODE_SIGNING.md](CODE_SIGNING.md).
+Bump the version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` first. Signing rules: [CODE_SIGNING.md](CODE_SIGNING.md).
 
-## Lisans
+## License
 
 [MIT](LICENSE)
