@@ -102,8 +102,8 @@ Arayüz Windows diline göre Türkçe ya da İngilizce açılır; Ayarlar › G�
 `v` ile başlayan bir etiket gönderince GitHub Actions kurulum dosyasını GitHub'ın kendi sunucusunda derleyip sürüme ekler:
 
 ```powershell
-git tag v0.2.0
-git push origin v0.2.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 Önce `src-tauri/tauri.conf.json` ve `src-tauri/Cargo.toml` içindeki sürümü yükselt. İmzalama kuralları için [CODE_SIGNING.md](CODE_SIGNING.md).

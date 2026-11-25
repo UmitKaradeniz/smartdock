@@ -113,8 +113,8 @@ The app runs on your own computer. These are its only outgoing requests:
 Pushing a tag that starts with `v` makes GitHub Actions build the installer and attach it to the release:
 
 ```powershell
-git tag v0.2.0
-git push origin v0.2.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 Bump the version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` first. Signing rules: [CODE_SIGNING.md](CODE_SIGNING.md).
