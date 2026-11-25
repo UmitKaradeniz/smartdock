@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
-fn data_dir() -> Option<PathBuf> {
+pub(crate) fn data_dir() -> Option<PathBuf> {
     Some(Path::new(&std::env::var("APPDATA").ok()?).join("app.smartdock.dock"))
 }
 pub fn live_path() -> Option<PathBuf> {

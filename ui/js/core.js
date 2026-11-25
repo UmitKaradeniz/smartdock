@@ -37,6 +37,7 @@ export const DEFAULTS = {
   reserve: true,
   autoHide: 'off', // IntelliHide: off | smart (hide while a window covers the dock) | always
   magnify: true,
+  magLevel: 50, // how much the hovered icon grows, in % (10..50)
   magSpeed: 'normal',
   toggles: ['wifi', 'bt', 'vol', 'hs'], // Hızlı Ayarlar buttons, in order
   peek: true, // show-desktop sliver in the screen corner

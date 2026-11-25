@@ -17,6 +17,8 @@ jobs:
     env:
       # signing runs only once SignPath has approved the project and the token is saved as a secret
       HAS_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+      # winget update runs only once the package is in winget-pkgs and the token is saved as a secret
+      HAS_WINGET: ${{ secrets.WINGET_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,3 +83,12 @@ jobs:
         with:
           files: publish/*.exe
           generate_release_notes: true
+
+      # opens a pull request on microsoft/winget-pkgs for the new version
+      - name: Update winget package
+        if: startsWith(github.ref, 'refs/tags/') && env.HAS_WINGET == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: UmitKaradeniz.smartdock
+          installers-regex: '-setup\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}

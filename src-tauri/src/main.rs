@@ -1024,6 +1024,13 @@ fn main() {
         claudelive::statusline_main();
         return;
     }
+    // the installer's hooks: it kills a running dock, so cleanup() never ran
+    if std::env::args().any(|a| a == "--restore-taskbar") {
+        if let Some(d) = claudelive::data_dir() {
+            shell::restore_taskbar(&d.join("taskbar.state"));
+        }
+        return;
+    }
     let prev = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |i| {
         cleanup();

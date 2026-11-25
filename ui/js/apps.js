@@ -306,7 +306,7 @@ export function magnifier(dockEl) {
   // or the strip really changes, and each frame writes only the styles that changed.
   let raf = 0, mx = null, list = [], cur = [], out = [], base = 0, baseC = 0, centers = [];
   let geo = null; // { dl, zoom, sl, sr } cached dock/strip edges
-  const MAX = 1.5, RANGE = 2.4;
+  const RANGE = 2.4;
   const halo = dockEl.querySelector('.halo > i');
   const readGeo = () => {
     const d = dockEl.getBoundingClientRect(), st = dockEl.querySelector('.w-apps')?.getBoundingClientRect();
@@ -329,12 +329,13 @@ export function magnifier(dockEl) {
     if (!n || !cfg.magnify) return;
     if (document.body.classList.contains('appdrag')) mx = null;
     const k = Math.min(1, (SPEED[cfg.magSpeed] || 0.22) * 2.2);
+    const grow = Math.min(50, Math.max(10, +cfg.magLevel || 50)) / 100;
     let moving = false, tot = 0;
     for (let i = 0; i < n; i++) {
       let target = 1;
       if (mx != null && centers[i] != null) {
         const d = Math.abs(mx - centers[i]) / baseC;
-        if (d < RANGE) target = 1 + (MAX - 1) * Math.cos((d / RANGE) * (Math.PI / 2)) ** 2;
+        if (d < RANGE) target = 1 + grow * Math.cos((d / RANGE) * (Math.PI / 2)) ** 2;
       }
       const c = cur[i];
       const v0 = c + (target - c) * k;

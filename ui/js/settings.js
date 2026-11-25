@@ -91,6 +91,9 @@ const PAGES = {
       screens.value = cfg.monitor != null && cfg.monitor < monitors.length ? String(cfg.monitor) : '';
       screens.onchange = () => set('monitor', screens.value === '' ? null : +screens.value);
     }
+    const mv = h('b', { class: 'rval' }, `%${cfg.magLevel}`);
+    const mr = h('input', { type: 'range', min: 10, max: 50, step: 5, value: cfg.magLevel });
+    mr.oninput = () => { set('magLevel', +mr.value); mv.textContent = `%${mr.value}`; };
     return [
       card($t('Görünürlük'),
         row($t('Otomatik gizleme'), seg('autoHide', [['off', $t('Kapalı')], ['smart', $t('Akıllı')], ['always', $t('Her zaman')]], redraw), modes[mode], true),
@@ -100,6 +103,7 @@ const PAGES = {
         screens && row($t('Ekran'), screens)),
       card($t('Davranış'),
         row($t('Mac tarzı büyütme'), sw('magnify', redraw), $t('Uygulama simgeleri fare üzerine gelince büyür.')),
+        cfg.magnify && row($t('Büyütme miktarı'), [mr, mv], $t('Fare altındaki simgenin ne kadar büyüyeceği.')),
         cfg.magnify && row($t('Büyütme hızı'), seg('magSpeed', [['slow', $t('Yavaş')], ['normal', $t('Normal')], ['fast', $t('Hızlı')]])),
         row($t('Dock\'ta ayar düğmesi'), sw('settingsButton'), $t('Kapalıyken ayarlar sağ tık menüsünden açılır.')),
         row($t('Masaüstünü göster köşesi'), sw('peek'), $t('Ekranın köşesindeki ince şerit tüm pencereleri küçültür.'))),

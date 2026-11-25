@@ -154,6 +154,8 @@ export default {
   "Akıllı: bir pencere dock'un yerini kaplayınca kenara kayar; fareyi ekran kenarına götürünce geri gelir. Açıkken pencerelere yer ayrılmaz.": 'Smart: slides away when a window covers the dock and comes back when the pointer reaches the screen edge. While on, no space is reserved for windows.',
   'Mac tarzı büyütme': 'Mac-style magnification',
   'Büyütme hızı': 'Magnification speed',
+  'Büyütme miktarı': 'Magnification amount',
+  'Fare altındaki simgenin ne kadar büyüyeceği.': 'How much the icon under the pointer grows.',
   'Yavaş': 'Slow',
   'Hızlı': 'Fast',
   'Windows ile başlat': 'Start with Windows',
