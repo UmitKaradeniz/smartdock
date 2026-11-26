@@ -63,6 +63,20 @@ fn badge_value(xml: &str) -> Option<u64> {
 /// Taskbar badges per app id (WhatsApp, Teams, ...). No public API hands out other apps' badges,
 /// so they come from Windows' own notification database, opened read-only. Only rows of type
 /// 'badge' (a number) are queried, never notification text.
+/// Size + last write of the notification database and its WAL; None when it can't be read.
+fn db_stamp() -> Option<[u64; 4]> {
+    let local = std::env::var("LOCALAPPDATA").ok()?;
+    let base = format!("{local}\\Microsoft\\Windows\\Notifications\\wpndatabase.db");
+    let one = |p: &str| -> Option<[u64; 2]> {
+        let m = std::fs::metadata(p).ok()?;
+        let t = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos() as u64;
+        Some([m.len(), t])
+    };
+    let [a, b] = one(&base)?;
+    let [c, d] = one(&format!("{base}-wal")).unwrap_or([0, 0]);
+    Some([a, b, c, d])
+}
+
 fn badges() -> Map<String, Value> {
     let mut out = Map::new();
     let Ok(local) = std::env::var("LOCALAPPDATA") else { return out };
@@ -101,6 +115,7 @@ fn badges() -> Map<String, Value> {
 pub fn run(emit: impl Fn(&Value)) {
     let Ok(l) = UserNotificationListener::Current() else { return };
     let mut asked = false;
+    let (mut seen, mut idle) = (None, 0u32);
     loop {
         let allowed = matches!(l.GetAccessStatus(), Ok(Access::Allowed));
         if !allowed && !asked {
@@ -108,6 +123,15 @@ pub fn run(emit: impl Fn(&Value)) {
             let _ = l.RequestAccessAsync().and_then(|op| op.get());
             continue;
         }
+        // toasts and badges both live in wpndatabase.db: while it (and its WAL) is untouched,
+        // skip the listener round trip and the SQLite read; look anyway every ~30 s
+        let st = db_stamp();
+        if st.is_some() && st == seen && idle < 15 {
+            idle += 1;
+            std::thread::sleep(Duration::from_secs(2));
+            continue;
+        }
+        (seen, idle) = (st, 0);
         let v = if allowed { read(&l).ok() } else { None };
         let mut v = v.unwrap_or_else(|| json!({ "access": false, "ids": {}, "names": {} }));
         v["badges"] = Value::Object(badges());

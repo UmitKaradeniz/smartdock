@@ -141,6 +141,7 @@ pub fn lhm_setup() -> Result<(), String> {
         std::thread::sleep(std::time::Duration::from_millis(500));
         if lhm_task_exists() {
             let _ = hidden("schtasks", &["/Run", "/TN", TASK]);
+            *crate::quick::LHM_STATE.lock().unwrap() = None;
             return Ok(());
         }
     }

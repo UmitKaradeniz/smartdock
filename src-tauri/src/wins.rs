@@ -1,5 +1,7 @@
 // Top-level window enumeration and control (the "running apps" half of the dock).
 use serde::Serialize;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM, RECT, TRUE};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS};
@@ -92,11 +94,19 @@ fn is_app_window(h: HWND, own: isize) -> bool {
     }
 }
 
+// per window: (pid, exe, aumid, polls seen). The exe of a pid never changes; apps may tag a
+// window with its AUMID just after creating it, so a new window is read on every poll for a
+// few seconds, an older one every ~5 s.
+static META: Mutex<Option<HashMap<isize, (u32, String, String, u32)>>> = Mutex::new(None);
+
 pub fn list(own: isize) -> Vec<Win> {
     let mut hs: Vec<HWND> = Vec::new();
     unsafe {
         let _ = EnumWindows(Some(collect), LPARAM(&mut hs as *mut _ as isize));
     }
+    let mut guard = META.lock().unwrap();
+    let meta = guard.get_or_insert_with(HashMap::new);
+    meta.retain(|k, _| hs.iter().any(|h| h.0 as isize == *k));
     let mut out = Vec::new();
     for h in hs {
         if !is_app_window(h, own) {
@@ -108,12 +118,19 @@ pub fn list(own: isize) -> Vec<Win> {
             let title = String::from_utf16_lossy(&buf[..n as usize]);
             let mut pid = 0u32;
             GetWindowThreadProcessId(h, Some(&mut pid));
-            let exe = exe_of_pid(pid);
-            let lower = exe.to_lowercase();
+            let e = meta.entry(h.0 as isize).or_insert_with(|| (pid, exe_of_pid(pid), String::new(), 0));
+            if e.0 != pid {
+                *e = (pid, exe_of_pid(pid), String::new(), 0);
+            }
+            let lower = e.1.to_lowercase();
             if lower.ends_with("\\textinputhost.exe") || lower.ends_with("\\shellexperiencehost.exe") || lower.ends_with("\\smartdock.exe") {
                 continue;
             }
-            out.push(Win { hwnd: h.0 as isize, title, exe, aumid: aumid_of(h, pid), pid, minimized: IsIconic(h).as_bool() });
+            if e.3 < 8 || e.3 % 8 == 0 {
+                e.2 = aumid_of(h, pid);
+            }
+            e.3 = e.3.wrapping_add(1);
+            out.push(Win { hwnd: h.0 as isize, title, exe: e.1.clone(), aumid: e.2.clone(), pid, minimized: IsIconic(h).as_bool() });
         }
     }
     out

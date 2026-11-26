@@ -314,11 +314,26 @@ pub fn lhm_exe() -> Option<std::path::PathBuf> {
         .or_else(|| Some(std::path::PathBuf::from(r"C:\Program Files\LibreHardwareMonitor\LibreHardwareMonitor.exe")).filter(|p| p.exists()))
 }
 
+pub static LHM_STATE: Mutex<Option<(std::time::Instant, bool, bool)>> = Mutex::new(None);
+
 /// Real sensors from LibreHardwareMonitor when it runs; ACPI thermal zones otherwise.
 pub fn temps() -> Value {
     if let Some(v) = lhm() {
         return v;
     }
     let z = acpi_temps();
-    json!({"source": "acpi", "lhm": lhm_exe().is_some(), "task": crate::desk::lhm_task_exists(), "cpu": Value::Null, "zones": z})
+    // the folder scan and the schtasks child process ran on every 5 s poll; a minute is enough
+    // (lhm_setup clears this so its result shows at once)
+    let (lhm, task) = {
+        let mut c = LHM_STATE.lock().unwrap();
+        match *c {
+            Some((t, l, k)) if t.elapsed() < std::time::Duration::from_secs(60) => (l, k),
+            _ => {
+                let v = (lhm_exe().is_some(), crate::desk::lhm_task_exists());
+                *c = Some((std::time::Instant::now(), v.0, v.1));
+                v
+            }
+        }
+    };
+    json!({"source": "acpi", "lhm": lhm, "task": task, "cpu": Value::Null, "zones": z})
 }

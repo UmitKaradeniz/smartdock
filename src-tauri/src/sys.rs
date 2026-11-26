@@ -269,7 +269,13 @@ pub fn screen_json() -> Value {
 }
 
 pub fn screen_save(path: &Path) {
-    let _ = std::fs::write(path, screen_json().to_string());
+    // idle minutes change nothing: don't rewrite the same file every minute
+    static SAVED: Mutex<String> = Mutex::new(String::new());
+    let s = screen_json().to_string();
+    let mut last = SAVED.lock().unwrap();
+    if *last != s && std::fs::write(path, &s).is_ok() {
+        *last = s;
+    }
 }
 
 // ---------- file index ----------
