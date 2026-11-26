@@ -2,10 +2,18 @@
 import { invoke, listen, defineService, push, refresh, cfg, set, bus, ymd } from './core.js';
 import { $t, LANG } from './i18n.js';
 
+// the last minute of system readings (one per 1.5 s), for tile sparklines and panel charts
+export const HIST_LEN = 40;
+export const hist = { cpu: [], down: [], up: [] };
+
 const j = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
 
 export function initData() {
-  defineService('stats', () => invoke('get_stats'), 1500);
+  defineService('stats', async () => {
+    const s = await invoke('get_stats');
+    for (const [k, v] of [['cpu', s.cpu], ['down', s.down], ['up', s.up]]) { hist[k].push(v); if (hist[k].length > HIST_LEN) hist[k].shift(); }
+    return s;
+  }, 1500);
   defineService('topcpu', () => invoke('get_top', { ram: false }), 3000);
   defineService('topram', () => invoke('get_top', { ram: true }), 4000);
   defineService('radios', () => invoke('radios_get'), 6000);
@@ -127,7 +135,7 @@ async function claude() {
     const seen = cliSeen?.usage[k]?.resets_at;
     if (w && !w.reset && seen && new Date(seen) > Date.now()) w.reset = new Date(seen);
   }
-  if (weekly) Object.assign(weekly, { at: r.at, prior: weekly.reset ? usualPace(history, +weekly.reset) : null });
+  if (weekly) Object.assign(weekly, { at: r.at, prior: weekly.reset ? usualPace(history, +weekly.reset) : null, samples: weekly.reset ? (history || []).filter(([t]) => t > +weekly.reset - WEEK && t <= r.at) : [] });
   const age = Math.max(0, Math.round((Date.now() - r.at) / 60000));
   const src = r.src === 'desktop' ? $t('Claude masaüstü kaydı') : $t('Claude Code');
   const note = `${src} · ${age < 1 ? $t('şimdi') : age + $t(' dk önce')}${r.src === 'desktop' && age > 20 ? $t(' · eski olabilir') : ''}`;
