@@ -161,9 +161,20 @@ fn activate_window(hwnd: isize, toggle: bool) {
 fn close_window(hwnd: isize) {
     shell::post_close(hwnd)
 }
+/// Recent items of an app's jump list (async: the shell thread may be busy with icons).
 #[tauri::command]
-fn kill_pid(pid: u32) {
-    wins::kill(pid)
+async fn jump_list(app_id: String) -> Vec<shellitems::Recent> {
+    shellitems::recent(app_id, 8)
+}
+/// Windows setting "show windows of all desktops on the taskbar".
+#[tauri::command]
+fn set_all_desktops(all: bool) {
+    wins::ALL_DESKTOPS.store(all, Ordering::SeqCst)
+}
+/// async: off the UI thread, so ending a hung app never stalls the dock
+#[tauri::command]
+async fn kill_pid(pids: Vec<u32>) {
+    wins::kill(&pids)
 }
 #[tauri::command]
 async fn list_apps(refresh: bool) -> Vec<shellitems::App> {
@@ -1038,8 +1049,12 @@ fn main() {
     }));
 
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            let _ = app.emit("hotkey", "search");
+        // Started again (a second autostart entry, or a click while it already runs): just make
+        // sure the dock is on screen. Opening search here greeted every logon with the search panel.
+        .plugin(tauri_plugin_single_instance::init(|_app, _, _| unsafe {
+            if !FS_HIDDEN.load(Ordering::SeqCst) && !IsWindowVisible(own()).as_bool() {
+                let _ = ShowWindow(own(), SW_SHOWNOACTIVATE);
+            }
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -1097,7 +1112,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_windows, activate_window, close_window, kill_pid, list_apps, launch, open_path, reveal, open_url,
+            get_windows, activate_window, close_window, kill_pid, jump_list, set_all_desktops, list_apps, launch, open_path, reveal, open_url,
             press_start, monitors, toggle_desktop, tray_list, tray_click, qs_get, qs_set, bt_devices, storage_info, storage_scan, temps, lhm_start, set_geometry, set_hit, pass_click, set_autohide, set_taskbar, get_stats, get_top, media_get, media_cmd, radios_get, radio_set, volume_get,
             volume_set, screen_time, find_files, claude_usage, claude_cli_usage, claude_link_get, claude_link_set, codex_usage, antigravity_usage, http_text, load_config, save_config, notif_get,
             wallpaper_info, recycle_bin, autostart, lock_pc, set_live_glass, memory_low, set_hotkey, quit

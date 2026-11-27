@@ -412,6 +412,7 @@ async function boot() {
   updateGlass(dock);
   applyLiveGlass();
   if (cfg.autostart) invoke('autostart', { enable: true });
+  if (cfg.allDesktops) invoke('set_all_desktops', { all: true });
   initUpdate();
 
   bus.on('cfg:items', renderItems);

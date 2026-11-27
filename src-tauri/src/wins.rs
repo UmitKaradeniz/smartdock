@@ -31,6 +31,31 @@ pub struct Win {
     pub aumid: String,
     pub pid: u32,
     pub minimized: bool,
+    /// lives on another virtual desktop (listed only with ALL_DESKTOPS)
+    pub other: bool,
+}
+
+pub static ALL_DESKTOPS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+thread_local! {
+    // the list is read from the UI thread and the watcher thread; each keeps its own manager
+    static VDM: Option<windows::Win32::UI::Shell::IVirtualDesktopManager> = unsafe {
+        use windows::Win32::System::Com::*;
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        CoCreateInstance(&windows::Win32::UI::Shell::VirtualDesktopManager, None, CLSCTX_ALL).ok()
+    };
+}
+
+/// The shell cloaks windows of other virtual desktops; other cloaked windows (suspended Store
+/// apps, shell surfaces) are on the current desktop and stay hidden.
+fn on_other_desktop(h: HWND) -> bool {
+    VDM.with(|m| unsafe {
+        let Some(m) = m else { return false };
+        match m.GetWindowDesktopId(h) {
+            Ok(g) if g.to_u128() != 0 => !m.IsWindowOnCurrentVirtualDesktop(h).map(|b| b.as_bool()).unwrap_or(true),
+            _ => false,
+        }
+    })
 }
 
 unsafe extern "system" fn collect(h: HWND, lp: LPARAM) -> BOOL {
@@ -73,24 +98,35 @@ fn aumid_of(h: HWND, pid: u32) -> String {
     }
 }
 
-fn is_app_window(h: HWND, own: isize) -> bool {
+/// None: not a taskbar window; Some(other_desktop).
+fn is_app_window(h: HWND, own: isize) -> Option<bool> {
     unsafe {
         if h.0 as isize == own || !IsWindowVisible(h).as_bool() {
-            return false;
+            return None;
         }
         if GetWindow(h, GW_OWNER).map(|o| !o.0.is_null()).unwrap_or(false) {
-            return false;
+            return None;
         }
         let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as u32;
         if ex & WS_EX_TOOLWINDOW.0 != 0 || ex & WS_EX_NOACTIVATE.0 != 0 {
-            return false;
+            return None;
         }
-        if GetWindowTextLengthW(h) == 0 {
-            return false;
+        // InternalGetWindowText reads the stored title; GetWindowTextLength sends a message and
+        // waited on a hung window (the one being ended), stalling the dock's UI thread
+        let mut b = [0u16; 2];
+        if InternalGetWindowText(h, &mut b) == 0 {
+            return None;
         }
         let mut cloaked: u32 = 0;
         let _ = DwmGetWindowAttribute(h, DWMWA_CLOAKED, &mut cloaked as *mut _ as *mut _, 4);
-        cloaked == 0
+        const DWM_CLOAKED_SHELL: u32 = 2;
+        if cloaked == 0 {
+            Some(false)
+        } else if cloaked & DWM_CLOAKED_SHELL != 0 && ALL_DESKTOPS.load(std::sync::atomic::Ordering::Relaxed) && on_other_desktop(h) {
+            Some(true)
+        } else {
+            None
+        }
     }
 }
 
@@ -109,12 +145,10 @@ pub fn list(own: isize) -> Vec<Win> {
     meta.retain(|k, _| hs.iter().any(|h| h.0 as isize == *k));
     let mut out = Vec::new();
     for h in hs {
-        if !is_app_window(h, own) {
-            continue;
-        }
+        let Some(other) = is_app_window(h, own) else { continue };
         unsafe {
             let mut buf = [0u16; 256];
-            let n = GetWindowTextW(h, &mut buf);
+            let n = InternalGetWindowText(h, &mut buf).max(0);
             let title = String::from_utf16_lossy(&buf[..n as usize]);
             let mut pid = 0u32;
             GetWindowThreadProcessId(h, Some(&mut pid));
@@ -126,11 +160,12 @@ pub fn list(own: isize) -> Vec<Win> {
             if lower.ends_with("\\textinputhost.exe") || lower.ends_with("\\shellexperiencehost.exe") || lower.ends_with("\\smartdock.exe") {
                 continue;
             }
-            if e.3 < 8 || e.3 % 8 == 0 {
+            // a hung window would block the property store call; keep the AUMID we already have
+            if (e.3 < 8 || e.3 % 8 == 0) && !IsHungAppWindow(h).as_bool() {
                 e.2 = aumid_of(h, pid);
             }
             e.3 = e.3.wrapping_add(1);
-            out.push(Win { hwnd: h.0 as isize, title, exe: e.1.clone(), aumid: e.2.clone(), pid, minimized: IsIconic(h).as_bool() });
+            out.push(Win { hwnd: h.0 as isize, title, exe: e.1.clone(), aumid: e.2.clone(), pid, minimized: IsIconic(h).as_bool(), other });
         }
     }
     out
@@ -155,11 +190,43 @@ pub fn activate(h: isize, minimize: bool) {
     }
 }
 
-pub fn kill(pid: u32) {
+/// "End task" like the Windows taskbar's: the app's processes and everything they started
+/// (helpers, renderers), children first so nothing respawns. Explorer and the dock are spared.
+pub fn kill(pids: &[u32]) {
+    use windows::Win32::System::Diagnostics::ToolHelp::*;
+    let me = std::process::id();
+    // (pid, parent, exe name) of every process
+    let mut all: Vec<(u32, u32, String)> = Vec::new();
     unsafe {
-        if let Ok(p) = OpenProcess(PROCESS_TERMINATE, false, pid) {
-            let _ = TerminateProcess(p, 1);
-            let _ = CloseHandle(p);
+        if let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+            let mut ok = Process32FirstW(snap, &mut e).is_ok();
+            while ok {
+                let n = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+                all.push((e.th32ProcessID, e.th32ParentProcessID, String::from_utf16_lossy(&e.szExeFile[..n]).to_lowercase()));
+                ok = Process32NextW(snap, &mut e).is_ok();
+            }
+            let _ = CloseHandle(snap);
+        }
+    }
+    let spared = |p: u32| p == me || p <= 4 || all.iter().any(|(q, _, n)| *q == p && matches!(n.as_str(), "explorer.exe" | "smartdock.exe" | "applicationframehost.exe"));
+    let mut tree: Vec<u32> = pids.iter().copied().filter(|&p| !spared(p)).collect();
+    let mut i = 0;
+    while i < tree.len() {
+        let parent = tree[i];
+        for (p, pp, _) in &all {
+            if *pp == parent && !tree.contains(p) && !spared(*p) {
+                tree.push(*p);
+            }
+        }
+        i += 1;
+    }
+    for &pid in tree.iter().rev() {
+        unsafe {
+            if let Ok(p) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+                let _ = TerminateProcess(p, 1);
+                let _ = CloseHandle(p);
+            }
         }
     }
 }

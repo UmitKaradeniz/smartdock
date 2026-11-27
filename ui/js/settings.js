@@ -254,7 +254,8 @@ const PAGES = {
         cfg.magnify && row($t('Büyütme miktarı'), rng('magLevel', 10, 50, 5)),
         cfg.magnify && row($t('Büyütme hızı'), seg('magSpeed', [['slow', $t('Yavaş')], ['normal', $t('Normal')], ['fast', $t('Hızlı')]])),
         row($t('Dock\'ta ayar düğmesi'), sw('settingsButton'), $t('Kapalıyken ayarlar sağ tık menüsünden açılır.')),
-        row($t('Masaüstünü göster köşesi'), sw('peek'), $t('Ekranın köşesindeki ince şerit tüm pencereleri küçültür.'))),
+        row($t('Masaüstünü göster köşesi'), sw('peek'), $t('Ekranın köşesindeki ince şerit tüm pencereleri küçültür.')),
+        row($t('Tüm masaüstlerindeki pencereler'), sw('allDesktops', () => invoke('set_all_desktops', { all: cfg.allDesktops })), $t('Diğer sanal masaüstlerindeki pencereler soluk görünür; tıklayınca o masaüstüne geçilir.'))),
     )];
   },
   system() {

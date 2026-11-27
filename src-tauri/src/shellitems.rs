@@ -55,6 +55,34 @@ pub struct App {
     pub target: String,
 }
 
+#[derive(Serialize, Clone)]
+pub struct Recent {
+    pub name: String,
+    pub path: String,
+}
+
+/// The app's jump list "Recent" category, the same list the Windows taskbar shows.
+/// `app_id` is its AUMID, or for apps without one the AppsFolder parsing name.
+pub fn recent(app_id: String, n: u32) -> Vec<Recent> {
+    run(move || unsafe {
+        let mut out = Vec::new();
+        let Ok(l) = CoCreateInstance::<_, IApplicationDocumentLists>(&ApplicationDocumentLists, None, CLSCTX_INPROC_SERVER) else { return out };
+        if app_id.is_empty() || l.SetAppID(&HSTRING::from(app_id.as_str())).is_err() {
+            return out;
+        }
+        let Ok(arr) = l.GetList::<Common::IObjectArray>(ADLT_RECENT, n) else { return out };
+        for i in 0..arr.GetCount().unwrap_or(0) {
+            let Ok(it) = arr.GetAt::<IShellItem>(i) else { continue };
+            let path = it.GetDisplayName(SIGDN_DESKTOPABSOLUTEPARSING).map(|p| pwstr(p)).unwrap_or_default();
+            let name = it.GetDisplayName(SIGDN_NORMALDISPLAY).map(|p| pwstr(p)).unwrap_or_default();
+            if !path.is_empty() {
+                out.push(Recent { name: if name.is_empty() { path.clone() } else { name }, path });
+            }
+        }
+        out
+    })
+}
+
 pub fn list_apps() -> Vec<App> {
     run(|| unsafe {
         let mut out = Vec::new();

@@ -41,6 +41,7 @@ export const DEFAULTS = {
   magSpeed: 'normal',
   toggles: ['wifi', 'bt', 'vol', 'hs'], // Hızlı Ayarlar buttons, in order
   peek: true, // show-desktop sliver in the screen corner
+  allDesktops: false, // list windows of every virtual desktop, as the Windows setting does
   settingsButton: true, // gear at the end of the dock
   autostart: false,
   sounds: false,

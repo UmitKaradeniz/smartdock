@@ -24,6 +24,13 @@ function matches(win, p) {
 const groupKey = (w) => low(w.aumid) || low(w.exe);
 // UWP hosts and packaged (MSIX) apps: their exe is locked in WindowsApps, the AUMID gives the real icon
 const winIcon = (w) => (w.aumid && /applicationframehost|\\windowsapps\\/i.test(w.exe) ? w.aumid : w.exe || w.aumid);
+// AppID the shell files the app's jump list under: its AUMID, else the AppsFolder id of its shortcut
+const jumpId = (ws, p) => {
+  if (ws[0]?.aumid) return ws[0].aumid;
+  if (p?.id && !/^[a-z]:\\/i.test(p.id)) return p.id;
+  const exe = low(ws[0]?.exe || p?.target);
+  return (exe && appList.find((x) => low(x.target) === exe)?.id) || '';
+};
 const niceName = (w) => {
   const a = appList.find((x) => low(x.target) === low(w.exe) || low(x.id) === low(w.aumid));
   if (a) return a.name;
@@ -137,7 +144,8 @@ export function mountApps(el) {
         const shot = h('img', { class: 'shot', src: `${SD}/winprev?hwnd=${win.hwnd}&w=260&t=${ts}`, alt: '' });
         shot.onerror = () => { thumb.innerHTML = `<img class="fb" src="${icSrc}"><span>${win.minimized ? $t('Simge durumunda') : $t('Önizleme yok')}</span>`; };
         thumb.append(shot);
-        if (win.minimized) thumb.append(h('i', { class: 'wmin' }, $t('Simge durumunda')));
+        if (win.other) thumb.append(h('i', { class: 'wmin' }, $t('Başka masaüstünde')));
+        else if (win.minimized) thumb.append(h('i', { class: 'wmin' }, $t('Simge durumunda')));
         card.append(hd, thumb);
         root.append(card);
       }
@@ -154,7 +162,8 @@ export function mountApps(el) {
     const used = new Set();
     const flash = new Set(wins.flash || []);
     const item = (key, name, img, ws, p) => {
-      const a = h('div', { class: 'app' + (ws.length ? ' run' : '') + (ws.length > 1 ? ' multi' : '') + (ws.some((w) => w.hwnd === wins.fg) ? ' fg' : ''), 'data-app': key });
+      const away = ws.length && ws.every((w) => w.other); // only on other virtual desktops
+      const a = h('div', { class: 'app' + (ws.length ? ' run' : '') + (away ? ' away' : '') + (ws.length > 1 ? ' multi' : '') + (ws.some((w) => w.hwnd === wins.fg) ? ' fg' : ''), 'data-app': key });
       // exe icons are the most faithful; fall back to the shell's AppsFolder icon, then the running exe
       const chain = [p && /\.exe$/i.test(p.target) && !/\\windowsapps\\/i.test(p.target) ? p.target : null, img, ws[0]?.aumid, ws[0]?.exe].filter(Boolean);
       const im = h('img', { src: iconUrl(chain.shift(), 64), alt: '', draggable: 'false' });
@@ -190,11 +199,15 @@ export function mountApps(el) {
       }
       a.onauxclick = (e) => { if (e.button === 1 && p) launchApp(p); };
       a.onmousedown = (e) => { clearPrevT(); if (e.button === 0) drag = { key, el: a, x0: e.clientX, moved: false, pin: p, ws, name, img }; };
-      a.oncontextmenu = (e) => {
+      a.oncontextmenu = async (e) => {
         clearPrevT();
         e.preventDefault();
         e.stopPropagation();
         const items = [];
+        // jump list "Recent", as on the Windows taskbar; a slow shell must not delay the menu
+        const recent = await Promise.race([invoke('jump_list', { appId: jumpId(ws, p) }).catch(() => []), new Promise((r) => setTimeout(() => r([]), 150))]);
+        for (const r of recent.slice(0, 6)) items.push({ label: r.name.slice(0, 34), icon: 'file', run: () => invoke('open_path', { path: r.path }) });
+        if (recent.length) items.push('-');
         for (const w of ws.slice(0, 6)) items.push({ label: w.title.slice(0, 34) || name, icon: 'window', run: () => invoke('activate_window', { hwnd: w.hwnd, toggle: false }) });
         if (ws.length) items.push('-');
         if (p) items.push({ label: $t('Yeni pencere'), icon: 'plus', run: () => launchApp(p) });
@@ -203,7 +216,7 @@ export function mountApps(el) {
         if (exe) items.push({ label: $t('Dosya konumunu aç'), icon: 'folder', run: () => invoke('reveal', { path: exe }) });
         if (ws.length) {
           items.push('-');
-          items.push({ label: $t('Görevi sonlandır'), icon: 'power', danger: true, run: () => invoke('kill_pid', { pid: ws[0].pid }) });
+          items.push({ label: $t('Görevi sonlandır'), icon: 'power', danger: true, run: () => invoke('kill_pid', { pids: [...new Set(ws.map((w) => w.pid))] }) });
           items.push({ label: ws.length > 1 ? $t('Tüm pencereleri kapat') : $t('Pencereyi kapat'), icon: 'close', run: () => ws.forEach((w) => invoke('close_window', { hwnd: w.hwnd })) });
         }
         menu(a, items);
