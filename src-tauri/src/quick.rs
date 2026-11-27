@@ -140,6 +140,7 @@ pub fn bt_devices() -> Vec<Value> {
     use windows::Devices::Enumeration::DeviceInformation;
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
+    let audio = crate::bt::audio_names();
     let classic = BluetoothDevice::GetDeviceSelectorFromPairingState(true).ok();
     let le = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true).ok();
     for (sel, is_le) in [(classic, false), (le, true)] {
@@ -151,12 +152,17 @@ pub fn bt_devices() -> Vec<Value> {
             if name.is_empty() || !seen.insert(name.clone()) {
                 continue;
             }
-            let on = if is_le {
-                BluetoothLEDevice::FromIdAsync(&id).and_then(|a| a.get()).and_then(|x| x.ConnectionStatus()).ok() == Some(BluetoothConnectionStatus::Connected)
+            let (on, av) = if is_le {
+                (BluetoothLEDevice::FromIdAsync(&id).and_then(|a| a.get()).and_then(|x| x.ConnectionStatus()).ok() == Some(BluetoothConnectionStatus::Connected), false)
             } else {
-                BluetoothDevice::FromIdAsync(&id).and_then(|a| a.get()).and_then(|x| x.ConnectionStatus()).ok() == Some(BluetoothConnectionStatus::Connected)
+                let x = BluetoothDevice::FromIdAsync(&id).and_then(|a| a.get()).ok();
+                let on = x.as_ref().and_then(|x| x.ConnectionStatus().ok()) == Some(BluetoothConnectionStatus::Connected);
+                // headphones / speakers: their audio driver may be gone while disconnected, the class stays
+                let av = x.and_then(|x| x.ClassOfDevice().and_then(|c| c.MajorClass()).ok()) == Some(windows::Devices::Bluetooth::BluetoothMajorClass::AudioVideo);
+                (on, av)
             };
-            out.push(json!({"name": name, "connected": on}));
+            let a = av || audio.iter().any(|n| { let (x, y) = (n.to_lowercase(), name.to_lowercase()); x.contains(&y) || y.contains(&x) });
+            out.push(json!({"id": id.to_string(), "name": name, "connected": on, "audio": a}));
         }
     }
     out.sort_by_key(|v| (!v["connected"].as_bool().unwrap_or(false), v["name"].as_str().unwrap_or("").to_lowercase()));
@@ -273,7 +279,9 @@ fn lhm_walk(n: &Value, hw: &str, out: &mut Vec<(String, String, f64)>) {
     let ty = n["Type"].as_str().unwrap_or("");
     if ty == "Temperature" || id.contains("/temperature/") {
         if let Some(c) = n["Value"].as_str().and_then(lhm_val) {
-            out.push((hw.to_string(), n["Text"].as_str().unwrap_or("").to_string(), c));
+            // the sensor id names its hardware ("/gpu-intel/...", "/intelcpu/..."); Intel Arc's image is just "intel.png"
+            let kind = if id.starts_with("/gpu") { "gpu" } else if id.contains("cpu/") { "cpu" } else { hw };
+            out.push((kind.to_string(), n["Text"].as_str().unwrap_or("").to_string(), c));
         }
     }
     // hardware nodes carry an image (cpu.png, nvidia.png, hdd.png, mainboard.png...)

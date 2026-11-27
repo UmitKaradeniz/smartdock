@@ -430,6 +430,54 @@ function ringTile(id, name, ic, desc, pick, panelRam) {
 ringTile('cpuring', $t('CPU Halkası'), 'cpu', $t('İşlemci yükü halka olarak; tıkla, en çok kullananlar.'), (s) => s.cpu, false);
 ringTile('ramring', $t('RAM Halkası'), 'ram', $t('Kullanılan bellek halka olarak.'), (s) => (s.ram_used / s.ram_total) * 100, true);
 
+// GPU: load (busiest engine, as Task Manager counts it), video memory and who uses it
+function openGpu(anchor) {
+  openPanel('gpu', anchor, { w: 330, h: 352 }, (root) => {
+    root.innerHTML = `<div class="ph-head"><div class="title">${$t('Ekran Kartı')}</div><div class="grow"></div><button class="tbtn quiet tm">${$t('Görev Yöneticisi')}${icon('external', 12)}</button></div><div class="ph-body"><span class="sub faint gname"></span><div class="big-num now">–</div><div class="gr"></div><div class="vram"></div><div class="plist"></div></div>`;
+    root.querySelector('.tm').onclick = () => { invoke('launch', { id: 'C:\\Windows\\System32\\Taskmgr.exe' }); closePanel(); };
+    const q = (c) => root.querySelector(c);
+    return use('gpu', (g) => {
+      if (!g) { q('.now').textContent = $t('GPU bulunamadı'); return; }
+      q('.gname').textContent = g.name;
+      q('.now').innerHTML = `${Math.round(g.load)}<small>%</small>`;
+      q('.gr').innerHTML = `${chartBox(52, area(hist.gpu, 298, 100, 51, 49, 'var(--accent)', 0.18))}<div class="between sub faint"><span>${Math.round(hist.gpu.length * 2)} ${$t('sn önce')}</span><span>${$t('Şimdi')}</span></div>`;
+      // integrated GPUs have almost no memory of their own: show the shared pool instead
+      const own = g.ded_total >= 512 * 1048576, used = own ? g.ded_used : g.shr_used, tot = own ? g.ded_total : g.shr_total, p = tot ? (used / tot) * 100 : 0;
+      q('.vram').innerHTML = `${meter(p, p > 90 ? 'bad' : '')}<div class="between sub faint"><span>${own ? $t('Ekran belleği') : $t('Paylaşılan bellek')} ${fmtBytes(used)}</span><span>${fmtBytes(tot)}</span></div>`;
+      q('.plist').innerHTML = g.procs.length ? g.procs.map((p) => `<div class="prow">${p.exe ? `<img src="${iconUrl(p.exe, 32)}">` : '<i></i>'}<span>${esc(p.name.replace(/\.exe$/i, ''))}</span><b>${p.gpu.toFixed(p.gpu < 10 ? 1 : 0)}%</b></div>`).join('') : `<div class="prow rest"><i></i><span>${$t('Şu an GPU kullanan uygulama yok')}</span><b></b></div>`;
+    });
+  });
+}
+def('gpu', 'GPU', 'sys', 'gpu', $t('Ekran kartı yükü, ekran belleği ve mini grafik.'), (el) => {
+  hov(el, () => openGpu(el));
+  el.innerHTML = `<div class="stack"><span class="sub">GPU</span><span class="lbl n" style="font-size:14px;min-width:4ch">–</span></div><svg class="spark" width="54" height="20"><polyline points="" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  const num = el.querySelector('.n'), poly = el.querySelector('polyline');
+  return use('gpu', (g) => {
+    if (!g) { num.textContent = '–'; return; }
+    num.textContent = `${Math.round(g.load)}%`;
+    el.title = g.name;
+    poly.setAttribute('points', sparkPts(hist.gpu.slice(-30), 54, 20, 100));
+  });
+});
+def('gpuring', $t('GPU Halkası'), 'sys', 'gpu', $t('Ekran kartı yükü halka olarak; tıkla, ayrıntılar.'), (el) => {
+  el.classList.add('bare', 'w-ring');
+  hov(el, () => openGpu(el));
+  el.innerHTML = `<div class="rw"><b></b></div>`;
+  const rw = el.firstChild, b = rw.querySelector('b');
+  let last = -1;
+  return use('gpu', (g) => {
+    if (!g) return;
+    el.title = g.name;
+    const p = Math.round(g.load);
+    if (p === last) return;
+    last = p;
+    const col = p >= 85 ? 'var(--bad)' : p >= 65 ? 'var(--warn)' : 'var(--accent)';
+    rw.querySelector('svg')?.remove();
+    rw.insertAdjacentHTML('afterbegin', ringSvg(p, 40, col, 3.6));
+    b.textContent = p;
+  });
+});
+
 def('ailimits', $t('AI Limitleri'), 'ai', 'spark', $t('İki yapay zeka planın tek tile’da: oturum doluluğu ve ne zaman yenileneceği.'), (el) => {
   const SV = [['claude', $t('Claude'), 'claude'], ['codex', 'ChatGPT', 'codex'], ['antigravity', $t('Antigravity'), 'antigravity']];
   hov(el, () => { const f = SV.find(([sv]) => peek(sv)) || SV[0]; openUsage(el, f[1], f[2], f[0], ''); });
@@ -522,10 +570,12 @@ def('toggles', $t('Hızlı Ayarlar'), 'sys', 'wifi', $t('Wi-Fi, Bluetooth, ses v
     const ok = await invoke('radio_set', { kind, on });
     if (!ok) { btn.classList.toggle('on', !on); toast(kind === 'wifi' ? $t('Wi-Fi değiştirilemedi') : $t('Bluetooth değiştirilemedi'), 'err'); }
   };
-  wf.onclick = () => flip('wifi', wf);
-  bt.onclick = () => flip('bluetooth', bt);
-  wf.oncontextmenu = (e) => { e.preventDefault(); invoke('open_url', { url: 'ms-settings:network-wifi' }); };
-  bt.oncontextmenu = (e) => { e.preventDefault(); openBluetooth(bt); };
+  wf.onclick = () => openWifi(wf);
+  bt.onclick = () => openBluetooth(bt);
+  wf.oncontextmenu = (e) => { e.preventDefault(); flip('wifi', wf); };
+  bt.oncontextmenu = (e) => { e.preventDefault(); flip('bluetooth', bt); };
+  wf.title = $t('Wi-Fi · sağ tık: aç/kapat');
+  bt.title = $t('Bluetooth · sağ tık: aç/kapat');
   hs.onclick = () => { blip(); invoke('open_url', { url: 'ms-settings:network-mobilehotspot' }); };
   vl.onclick = () => openVolume(vl);
   // volume: the level is a ring around the speaker; while the wheel turns, the number shows instead
@@ -550,16 +600,67 @@ def('toggles', $t('Hızlı Ayarlar'), 'sys', 'wifi', $t('Wi-Fi, Bluetooth, ses v
   shown();
   return () => { a(); b(); c(); };
 });
-function openVolume(anchor) {
-  openPanel('volume', anchor, { w: 300, h: 100 }, (root) => {
-    root.innerHTML = `<div class="ph-head"><div class="title">${$t('Ses')}</div><div class="grow"></div><button class="tbtn quiet cfg">${$t('Ses ayarları')}${icon('external', 12)}</button></div><div class="ph-body row" style="gap:8px"><button class="ibtn m"></button><div class="fat grow"><input type="range" min="0" max="100"><b></b></div></div>`;
+async function openVolume(anchor) {
+  let d = null;
+  try { d = await Promise.race([Promise.all([invoke('audio_outputs'), invoke('audio_apps')]).then(([outs, apps]) => ({ outs, apps })), new Promise((r) => setTimeout(r, 400))]); } catch {}
+  const no = d?.outs?.length || 2, na = d?.apps?.length || 0;
+  openPanel('volume', anchor, { w: 330, h: Math.min(560, 196 + no * 34 + (na ? 34 + na * 36 : 0)), cls: 'flat' }, (root, close) => {
+    root.innerHTML = `<div class="ph-head"><div class="title">${$t('Ses')}</div></div><div class="ph-body"><div class="row" style="gap:8px"><button class="ibtn m"></button><div class="fat grow"><input type="range" min="0" max="100"><b></b></div></div></div>
+      <div class="ph-body fill"><div class="sect-h">${$t('Çıkış')}</div><div class="nlist outs"></div><div class="mixer"></div></div>
+      <div class="pft"><button class="tbtn quiet cfg">${$t('Ses ayarları…')}${icon('external', 12)}</button></div>`;
     const r = root.querySelector('input'), pct = root.querySelector('.fat b'), m = root.querySelector('.m');
+    const outs = root.querySelector('.outs'), mixer = root.querySelector('.mixer');
     const show = (v) => { pct.textContent = v; r.style.setProperty('--v', v + '%'); };
     let t = 0;
     r.oninput = () => { show(r.value); clearTimeout(t); t = setTimeout(() => invoke('volume_set', { level: r.value / 100 }).then(() => refresh('volume')), 30); };
-    m.onclick = () => { const v = peek('volume'); invoke('volume_set', { muted: !v?.muted }).then(() => refresh('volume')); };
-    root.querySelector('.cfg').onclick = () => { invoke('open_url', { url: 'ms-settings:sound' }); closePanel(); };
-    return use('volume', (v) => { if (!v) return; if (document.activeElement !== r) r.value = Math.round(v.level * 100); show(Math.round(v.level * 100)); r.parentElement.classList.toggle('muted', !!v.muted); m.innerHTML = icon(v.muted ? 'mute' : 'vol', 16); });
+    m.onclick = () => { blip(); const v = peek('volume'); invoke('volume_set', { muted: !v?.muted }).then(() => refresh('volume')); };
+    root.querySelector('.cfg').onclick = () => { invoke('open_url', { url: 'ms-settings:sound' }); close(); };
+    let busy = false;
+    const drawOuts = (list) => {
+      outs.innerHTML = '';
+      for (const o of list) {
+        const row = h('button', { class: `orow${o.default ? ' on' : ''}`, html: `<i>${icon(/kulakl|headph|head|buds|airpods/i.test(o.name) ? 'hp' : 'vol', 15)}</i><span>${esc(o.name)}</span>${o.default ? icon('check', 14) : ''}` });
+        row.onclick = async () => {
+          if (o.default || busy) return;
+          blip(); busy = true;
+          outs.querySelectorAll('.orow').forEach((x) => x.classList.toggle('on', x === row));
+          const ok = await invoke('audio_output_set', { id: o.id });
+          busy = false;
+          if (!ok) toast($t('Ses çıkışı değiştirilemedi'), 'err');
+          refresh('audio'); refresh('volume');
+        };
+        outs.append(row);
+      }
+    };
+    // app rows are kept while sliding so the thumb never jumps out of the hand
+    const rows = new Map();
+    const drawApps = (apps) => {
+      if (!apps.length) { mixer.innerHTML = ''; rows.clear(); return; }
+      if (!mixer.firstChild) mixer.innerHTML = `<div class="sect-h">${$t('Uygulamalar')}</div>`;
+      const seen = new Set();
+      for (const a of apps) {
+        seen.add(a.pid);
+        let x = rows.get(a.pid);
+        if (!x) {
+          const el = h('div', { class: 'mix', html: `${a.exe ? `<img src="${iconUrl(a.exe, 32)}" alt="">` : `<i>${icon('vol', 15)}</i>`}<span>${esc(a.pid ? a.name : $t('Sistem sesleri'))}</span><input type="range" min="0" max="100"><button class="ibtn"></button>` });
+          const rg = el.querySelector('input'), mb = el.querySelector('button');
+          let tt = 0;
+          rg.oninput = () => { rg.style.setProperty('--p', rg.value + '%'); clearTimeout(tt); tt = setTimeout(() => invoke('audio_app_set', { pid: a.pid, level: rg.value / 100, muted: false }), 30); };
+          mb.onclick = () => { blip(); const mu = !el.classList.contains('muted'); el.classList.toggle('muted', mu); mb.innerHTML = icon(mu ? 'mute' : 'vol', 14); invoke('audio_app_set', { pid: a.pid, muted: mu }).then(() => refresh('audio')); };
+          x = { el, rg, mb };
+          rows.set(a.pid, x);
+          mixer.append(el);
+        }
+        if (document.activeElement !== x.rg) { x.rg.value = Math.round(a.level * 100); x.rg.style.setProperty('--p', x.rg.value + '%'); }
+        x.el.classList.toggle('muted', a.muted);
+        x.mb.innerHTML = icon(a.muted ? 'mute' : 'vol', 14);
+      }
+      for (const [pid, x] of rows) if (!seen.has(pid)) { x.el.remove(); rows.delete(pid); }
+    };
+    if (d) { drawOuts(d.outs); drawApps(d.apps); }
+    const a1 = use('audio', (x) => { if (x && !busy) { drawOuts(x.outs); drawApps(x.apps); } });
+    const a2 = use('volume', (v) => { if (!v) return; if (document.activeElement !== r) r.value = Math.round(v.level * 100); show(Math.round(v.level * 100)); r.parentElement.classList.toggle('muted', !!v.muted); m.innerHTML = icon(v.muted ? 'mute' : 'vol', 16); });
+    return () => { a1(); a2(); };
   });
 }
 def('volume', $t('Ses Seviyesi'), 'sys', 'vol', $t('Ana ses seviyesi; tıkla ve kaydır.'), (el) => {
@@ -667,7 +768,7 @@ function openScreen(anchor) {
 
 // =============== quick settings, bluetooth, storage, temperature ===============
 const QS = [
-  ['wifi', $t('Wi-Fi'), 'wifi'], ['bluetooth', $t('Bluetooth'), 'bt', 'more'], ['hotspot', $t('Mobil hotspot'), 'hotspot', 'link'],
+  ['wifi', $t('Wi-Fi'), 'wifi', 'more'], ['bluetooth', $t('Bluetooth'), 'bt', 'more'], ['hotspot', $t('Mobil hotspot'), 'hotspot', 'link'],
   ['airplane', $t('Uçak modu'), 'plane'], ['mic', $t('Mikrofon'), 'mic'], ['camera', $t('Kamera'), 'cam'],
   ['awake', $t('Uyanık tut'), 'cup'], ['icons', $t('Masaüstü simgeleri'), 'grid'], ['dark', $t('Koyu mod'), 'moon'],
 ];
@@ -682,7 +783,7 @@ function openQuick(anchor) {
       const main = h('button', { class: 'qt-main' }, h('span', { class: 'qi', html: icon(ic, 15) }), h('span', { class: 'qt-text' }, h('b', {}, label), state));
       const tile = h('div', { class: 'qt' }, main);
       const paint = (on) => { tile.classList.toggle('on', on); main.setAttribute('aria-pressed', on); state.textContent = on ? $t('Açık') : $t('Kapalı'); };
-      if (kind === 'more') tile.append(h('button', { class: 'ibtn', title: $t('Cihazlar'), html: icon('chevr', 14), onclick: () => openBluetooth(anchor) }));
+      if (kind === 'more') tile.append(h('button', { class: 'ibtn', title: k === 'wifi' ? $t('Ağlar') : $t('Cihazlar'), html: icon('chevr', 14), onclick: () => (k === 'wifi' ? openWifi : openBluetooth)(anchor) }));
       if (kind === 'link') tile.append(h('span', { class: 'faint qt-ext', html: icon('external', 12) }));
       main.onclick = async () => {
         blip();
@@ -710,27 +811,164 @@ function openQuick(anchor) {
     });
   });
 }
-function openBluetooth(anchor) {
-  openPanel('bt', anchor, { w: 330, h: 330 }, (root, close) => {
-    root.innerHTML = `<div class="ph-head"><div class="title">${$t('Bluetooth')}</div><div class="grow"></div><button class="sw pw" title="${$t('Bluetooth')}"></button></div><div class="ph-body fill devs"></div><div class="pft"><button class="tbtn quiet link">${$t('Bluetooth ayarları…')}${icon('external', 12)}</button></div>`;
-    const pw = root.querySelector('.pw'), devs = root.querySelector('.devs');
-    root.querySelector('.link').onclick = () => { blip(); invoke('open_url', { url: 'ms-settings:bluetooth' }); close(); };
+// Rows that open in place into their actions (Wi-Fi networks, Bluetooth devices).
+function actionRow(list, key, { ic, name, sub, on, open }, fill) {
+  const row = h('div', { class: `nrow${on ? ' on' : ''}${open ? ' open' : ''}` });
+  row.innerHTML = `<button class="nh"><i class="ni">${ic}</i><span class="nn"><b>${esc(name)}</b><small>${esc(sub)}</small></span>${on ? '<b class="cdot"></b>' : ''}</button>`;
+  if (open && fill) { const na = h('div', { class: 'na' }); fill(na); row.append(na); }
+  list.append(row);
+  return row;
+}
+const pbtn = (label, cls, run) => h('button', { class: `pbtn ${cls}`, onclick: (e) => { e.stopPropagation(); blip(); run(e.currentTarget); } }, label);
+const wifiBars = (sig) => {
+  const n = sig >= 75 ? 3 : sig >= 50 ? 2 : sig >= 25 ? 1 : 0;
+  return `<svg class="ic wbars" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path class="${n >= 3 ? 'lit' : ''}" d="M2.5 9a14 14 0 0 1 19 0"/><path class="${n >= 2 ? 'lit' : ''}" d="M5.5 12.3a9.5 9.5 0 0 1 13 0"/><path class="${n >= 1 ? 'lit' : ''}" d="M8.6 15.6a5 5 0 0 1 6.8 0"/><circle class="lit" cx="12" cy="19" r="1.1" fill="currentColor"/></svg>`;
+};
+function openWifi(anchor) {
+  openPanel('wifi', anchor, { w: 340, h: 420, cls: 'flat' }, (root, close) => {
+    root.innerHTML = `<div class="ph-head"><div class="title">${$t('Wi-Fi')}</div><div class="grow"></div><button class="sw pw" title="${$t('Wi-Fi')}"></button></div><div class="ph-body fill"><div class="nlist"></div></div><div class="pft"><button class="tbtn quiet link">${$t('Ağ ayarları…')}${icon('external', 12)}</button></div>`;
+    const pw = root.querySelector('.pw'), list = root.querySelector('.nlist');
+    root.querySelector('.link').onclick = () => { blip(); invoke('open_url', { url: 'ms-settings:network-wifi' }); close(); };
+    let openK = null, nets = null, radioOn = true, work = null, locOff = false; // work: {ssid, text}
+    const draw = () => {
+      // never redraw under a half-typed password
+      const typing = list.querySelector('input');
+      if (typing && typing === document.activeElement) return;
+      list.innerHTML = '';
+      if (!radioOn) { list.innerHTML = `<div class="empty"><b>${$t('Wi-Fi kapalı')}</b><span class="sub">${$t('Ağları görmek için aç.')}</span></div>`; return; }
+      if (locOff) {
+        // Windows 11 only lists networks to apps that may use Location; that choice stays the user's
+        list.innerHTML = `<div class="empty"><b>${$t('Ağ listesi için Konum izni gerekiyor')}</b><span class="sub">${$t('Windows, Wi-Fi ağlarını yalnız Konum açıkken gösteriyor.')}</span></div>`;
+        list.firstChild.append(pbtn($t('Konum ayarını aç'), '', () => { invoke('open_url', { url: 'ms-settings:privacy-location' }); close(); }));
+        return;
+      }
+      if (!nets) { list.innerHTML = `<div class="empty"><b>${$t('Ağlar aranıyor…')}</b></div>`; return; }
+      if (!nets.length) { list.innerHTML = `<div class="empty"><b>${$t('Ağ bulunamadı')}</b><span class="sub">${$t('Birkaç saniye içinde yeniden aranacak.')}</span></div>`; return; }
+      for (const n of nets) {
+        const sub = work?.ssid === n.ssid ? work.text : n.connected ? $t('Bağlı') : n.saved ? $t('Kayıtlı') : n.secure ? $t('Güvenli') : $t('Açık ağ');
+        const row = actionRow(list, n.ssid, { ic: wifiBars(n.signal) + (n.secure ? `<span class="lk">${icon('lock', 9)}</span>` : ''), name: n.ssid, sub, on: n.connected, open: openK === n.ssid }, (na) => {
+          if (n.connected) {
+            na.append(pbtn($t('Bağlantıyı kes'), 'ghost', async () => { work = { ssid: n.ssid, text: $t('Bağlantı kesiliyor…') }; draw(); await invoke('wifi_disconnect'); work = null; refresh('wifinets'); }));
+          } else if (n.enterprise && !n.saved) {
+            na.append(pbtn($t('Ayarlarda bağlan'), '', () => { invoke('open_url', { url: 'ms-settings:network-wifi' }); close(); }));
+          } else {
+            let inp = null;
+            if (n.secure && !n.saved) {
+              inp = h('input', { type: 'password', placeholder: $t('Ağ güvenlik anahtarı'), autocomplete: 'off', spellcheck: false });
+              na.append(inp);
+              setTimeout(() => inp.focus(), 30);
+            }
+            const go = async (btn) => {
+              const password = inp ? inp.value : null;
+              if (inp && password.length < 8) { inp.focus(); return toast($t('Şifre en az 8 karakter olmalı'), 'err'); }
+              btn.disabled = true;
+              work = { ssid: n.ssid, text: $t('Bağlanıyor…') };
+              if (inp) inp.blur();
+              draw();
+              try { await invoke('wifi_connect', { ssid: n.ssid, password }); toast(`${n.ssid} ${$t('bağlandı')}`); openK = null; }
+              catch (e) { toast(e === 'password' ? $t('Şifre yanlış ya da ağ yanıt vermedi') : e === 'enterprise' ? $t('Bu ağ için Ayarlar gerekli') : $t('Bağlanılamadı'), 'err'); }
+              work = null; refresh('wifinets'); refresh('radios');
+            };
+            const b = pbtn($t('Bağlan'), '', go);
+            if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') b.click(); if (e.key === 'Escape') { openK = null; inp.blur(); draw(); } };
+            na.append(b);
+          }
+          if (n.saved) na.append(pbtn($t('Unut'), 'bad', async () => { if (await invoke('wifi_forget', { ssid: n.ssid })) toast(`${n.ssid} ${$t('unutuldu')}`); openK = null; refresh('wifinets'); }));
+        });
+        row.firstChild.onclick = () => { blip(); openK = openK === n.ssid ? null : n.ssid; if (document.activeElement?.tagName === 'INPUT') document.activeElement.blur(); draw(); };
+      }
+    };
     pw.onclick = async () => {
       blip();
       const on = !pw.classList.contains('on');
-      pw.classList.toggle('on', on);
+      pw.classList.toggle('on', on); radioOn = on; if (on) nets = null; draw();
+      if (!(await invoke('radio_set', { kind: 'wifi', on }))) { pw.classList.toggle('on', !on); toast($t('Wi-Fi değiştirilemedi'), 'err'); }
+      refresh('radios'); setTimeout(() => refresh('wifinets'), 1500);
+    };
+    const a = use('radios', (r) => { if (!r) return; pw.classList.toggle('on', !!r.wifi); if (radioOn !== !!r.wifi) { radioOn = !!r.wifi; draw(); } });
+    const b = use('wifinets', (x) => { if (x) { nets = x.nets; locOff = !!x.location; draw(); } });
+    draw();
+    return () => { a(); b(); };
+  });
+}
+function openBluetooth(anchor) {
+  openPanel('bt', anchor, { w: 340, h: 420, cls: 'flat' }, (root, close) => {
+    root.innerHTML = `<div class="ph-head"><div class="title">${$t('Bluetooth')}</div><div class="grow"></div><button class="sw pw" title="${$t('Bluetooth')}"></button></div><div class="ph-body fill"><div class="nlist devs"></div><div class="nlist near"></div></div><div class="pft"><button class="tbtn add">${icon('plus', 12)}${$t('Cihaz ekle')}</button><div class="grow"></div><button class="tbtn quiet link">${$t('Ayarlar…')}${icon('external', 12)}</button></div>`;
+    const pw = root.querySelector('.pw'), devs = root.querySelector('.devs'), near = root.querySelector('.near'), add = root.querySelector('.add');
+    root.querySelector('.link').onclick = () => { blip(); invoke('open_url', { url: 'ms-settings:bluetooth' }); close(); };
+    let openK = null, list = null, radioOn = true, sure = null, offScan = null;
+    const work = {};
+    const draw = () => {
+      devs.innerHTML = '';
+      if (!radioOn) { devs.innerHTML = `<div class="empty"><b>${$t('Bluetooth kapalı')}</b><span class="sub">${$t('Cihazları görmek için aç.')}</span></div>`; return; }
+      if (!list) { devs.innerHTML = `<div class="empty"><b>${$t('Aranıyor…')}</b></div>`; return; }
+      if (!list.length && !offScan) { devs.innerHTML = `<div class="empty"><b>${$t('Eşleştirilmiş cihaz yok')}</b><span class="sub">${$t('Aşağıdan yeni cihaz ekle.')}</span></div>`; return; }
+      if (list.length) devs.append(h('div', { class: 'sect-h' }, $t('Cihazlarım')));
+      for (const d of list) {
+        const sub = work[d.id] || (d.connected ? $t('Bağlı') : $t('Eşleştirildi'));
+        const row = actionRow(devs, d.id, { ic: icon(d.audio ? 'hp' : 'bt', 15), name: d.name, sub, on: d.connected, open: openK === d.id }, (na) => {
+          const act = async (on) => {
+            work[d.id] = on ? $t('Bağlanıyor…') : $t('Bağlantı kesiliyor…'); draw();
+            const ok = await invoke('bt_connect', { id: d.id, name: d.name, on });
+            if (!ok) toast(on ? $t('Cihaz yanıt vermedi; açık ve yakında mı?') : $t('Bağlantı kesilemedi'), 'err');
+            // the driver reports back a moment later
+            setTimeout(() => { delete work[d.id]; refresh('btdev'); }, on ? 4000 : 1500);
+          };
+          if (d.audio) na.append(d.connected ? pbtn($t('Bağlantıyı kes'), 'ghost', () => act(false)) : pbtn($t('Bağlan'), '', () => act(true)));
+          else if (!d.connected) na.append(h('span', { class: 'sub na-note' }, $t('Cihazı açınca kendiliğinden bağlanır.')));
+          na.append(pbtn(sure === d.id ? $t('Emin misin? Kaldır') : $t('Cihazı kaldır'), 'bad', async () => {
+            if (sure !== d.id) { sure = d.id; return draw(); }
+            sure = null; work[d.id] = $t('Kaldırılıyor…'); draw();
+            const ok = await invoke('bt_unpair', { id: d.id });
+            delete work[d.id];
+            toast(ok ? `${d.name} ${$t('kaldırıldı')}` : $t('Cihaz kaldırılamadı'), ok ? '' : 'err');
+            openK = null; refresh('btdev');
+          }));
+        });
+        row.firstChild.onclick = () => { blip(); sure = null; openK = openK === d.id ? null : d.id; draw(); };
+      }
+    };
+    // "Add device": a live search for nearby devices; tap one to pair
+    let found = null, pairing = null;
+    const drawNear = () => {
+      near.innerHTML = '';
+      if (!offScan) return;
+      near.append(h('div', { class: 'sect-h' }, $t('Yakındaki cihazlar'), h('span', { class: 'scan-dot' })));
+      if (!found?.length) { near.append(h('div', { class: 'sub near-hint' }, $t('Cihazı eşleştirme moduna al…'))); return; }
+      for (const f of found) {
+        const row = actionRow(near, f.id, { ic: icon('bt', 15), name: f.name, sub: pairing === f.id ? $t('Eşleştiriliyor…') : $t('Eşleştirmek için dokun'), on: false, open: false });
+        row.firstChild.onclick = async () => {
+          if (pairing) return;
+          blip(); pairing = f.id; drawNear();
+          const ok = await invoke('bt_pair', { id: f.id });
+          pairing = null;
+          toast(ok ? `${f.name} ${$t('eşleştirildi')}` : $t('Eşleştirilemedi; PIN isteyen cihazlar için Ayarlar’ı kullan'), ok ? '' : 'err');
+          refresh('btdev'); refresh('btscan');
+        };
+      }
+    };
+    const stopScan = () => { offScan?.(); offScan = null; found = null; add.innerHTML = `${icon('plus', 12)}${$t('Cihaz ekle')}`; };
+    add.onclick = () => {
+      blip();
+      if (offScan) { stopScan(); drawNear(); draw(); return; }
+      if (!radioOn) return toast($t('Önce Bluetooth’u aç'), 'err');
+      add.textContent = $t('Aramayı durdur');
+      offScan = use('btscan', (x) => { if (x) { found = x; drawNear(); } });
+      drawNear(); draw();
+    };
+    pw.onclick = async () => {
+      blip();
+      const on = !pw.classList.contains('on');
+      pw.classList.toggle('on', on); radioOn = on;
+      if (!on) { stopScan(); drawNear(); }
+      draw();
       if (!(await invoke('radio_set', { kind: 'bluetooth', on }))) { pw.classList.toggle('on', !on); toast($t('Bluetooth değiştirilemedi'), 'err'); }
       refresh('radios'); refresh('btdev');
     };
-    const empty = (t1, t2) => `<div class="empty"><b>${t1}</b><span class="sub">${t2}</span></div>`;
-    const group = (name, l, cls) => (l.length ? `<div class="grp ${cls}"><span class="sub faint">${name}</span>${l.map((d) => `<div class="prow"><i class="dev">${icon('bt', 12)}</i><span>${esc(d.name)}</span>${d.connected ? '<b class="cdot"></b>' : ''}</div>`).join('')}</div>` : '');
-    const a = use('radios', (r) => r && pw.classList.toggle('on', !!r.bluetooth));
-    const b = use('btdev', (list) => {
-      if (!list) { devs.innerHTML = empty($t('Aranıyor…'), ''); return; }
-      devs.innerHTML = list.length ? group($t('Bağlı'), list.filter((d) => d.connected), '') + group($t('Eşleştirilmiş'), list.filter((d) => !d.connected), 'off')
-        : empty($t('Eşleştirilmiş cihaz yok'), $t('Yeni cihazı Bluetooth ayarlarından eşleştir.'));
-    });
-    return () => { a(); b(); };
+    const a = use('radios', (r) => { if (!r) return; pw.classList.toggle('on', !!r.bluetooth); if (radioOn !== !!r.bluetooth) { radioOn = !!r.bluetooth; draw(); } });
+    const b = use('btdev', (l) => { if (l) { list = l; draw(); } });
+    draw();
+    return () => { a(); b(); offScan?.(); };
   });
 }
 
@@ -800,6 +1038,28 @@ def('temp', $t('Sıcaklık'), 'sys', 'therm', $t('İşlemci ısısı, CPU ve RAM
   };
   const a = use('temps', (x) => { tp = x; draw(); }), b = use('stats', (x) => { st = x; draw(); });
   return () => { a(); b(); };
+});
+// The same idea in three rows (CPU, GPU, RAM) with each part's temperature as a badge on the right.
+def('tempgpu', $t('Sıcaklık + GPU'), 'sys', 'therm', $t('CPU, GPU ve RAM yükü; işlemci ve ekran kartı ısısı yanında.'), (el) => {
+  hov(el, () => openTemp(el));
+  const row = (k) => `<span class="k">${k}</span><div class="bar"><i style="width:0%"></i></div><span class="v">0%</span><span class="tpill"></span>`;
+  el.innerHTML = `<div class="ubars u4">${row('CPU')}${row('GPU')}${row('RAM')}</div>`;
+  const bars = el.querySelectorAll('.bar > i'), vals = el.querySelectorAll('.v'), pills = el.querySelectorAll('.tpill');
+  let st = null, tp = null, gp = null;
+  const pill = (b, c) => {
+    const txt = c == null ? '' : Math.round(c) + '°', cls = `tpill${c == null ? '' : ' ' + tState(c)[1]}`;
+    if (b.textContent !== txt) b.textContent = txt;
+    if (b.className !== cls) b.className = cls;
+  };
+  const draw = () => {
+    const v = [st ? Math.round(st.cpu) : 0, gp ? Math.round(gp.load) : 0, st ? Math.round((st.ram_used / st.ram_total) * 100) : 0];
+    // unchanged numbers are not rewritten: every write repaints the whole transparent dock
+    v.forEach((x, i) => { if (vals[i].textContent !== x + '%') { bars[i].style.width = x + '%'; vals[i].textContent = x + '%'; } });
+    pill(pills[0], tp?.hot);
+    pill(pills[1], tp?.gpu);
+  };
+  const a = use('temps', (x) => { tp = x; draw(); }), b = use('stats', (x) => { st = x; draw(); }), c = use('gpu', (x) => { gp = x; draw(); });
+  return () => { a(); b(); c(); };
 });
 function openTemp(anchor) {
   openPanel('temp', anchor, { w: 440, h: 392, cls: 'flat' }, (root, close) => {

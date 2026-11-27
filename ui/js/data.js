@@ -4,7 +4,7 @@ import { $t, LANG } from './i18n.js';
 
 // the last minute of system readings (one per 1.5 s), for tile sparklines and panel charts
 export const HIST_LEN = 40;
-export const hist = { cpu: [], down: [], up: [] };
+export const hist = { cpu: [], down: [], up: [], gpu: [] };
 
 const j = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
 
@@ -21,6 +21,16 @@ export function initData() {
   defineService('screen', () => invoke('screen_time'), 30000);
   defineService('qs', () => invoke('qs_get'), 5000);
   defineService('btdev', () => invoke('bt_devices'), 10000);
+  // the rest only run while a panel shows them
+  let scans = 0;
+  defineService('wifinets', () => invoke('wifi_list', { scan: scans++ % 3 === 0 }), 4000);
+  defineService('btscan', () => invoke('bt_scan'), 3000);
+  defineService('audio', async () => { const [outs, apps] = await Promise.all([invoke('audio_outputs'), invoke('audio_apps')]); return { outs, apps }; }, 3000);
+  defineService('gpu', async () => {
+    const g = await invoke('gpu_stats');
+    if (g) { hist.gpu.push(g.load); if (hist.gpu.length > HIST_LEN) hist.gpu.shift(); }
+    return g;
+  }, 2000);
   defineService('storage', () => invoke('storage_info'), 60000);
   // temperatures + a 10 minute history while anything shows them
   const tHist = [];
@@ -31,7 +41,9 @@ export function initData() {
     // LibreHardwareMonitor gives the real CPU package; ACPI zones are only a board estimate
     const hot = r.cpu ?? (zones.length ? Math.max(...zones.map((z) => z.c)) : null);
     if (hot != null) { tHist.push(hot); if (tHist.length > 120) tHist.shift(); }
-    return { zones, hot, hist: tHist.slice(), source: r.source, lhm: r.lhm };
+    // GPU core: only LibreHardwareMonitor reports it
+    const gpu = zones.find((z) => z.name === 'Ekran kartı')?.c ?? null;
+    return { zones, hot, gpu, hist: tHist.slice(), source: r.source, lhm: r.lhm };
   }, 5000);
   defineService('recycle', () => invoke('recycle_bin', { empty: false }), 30000);
   defineService('claude', claude, 5 * 60000);

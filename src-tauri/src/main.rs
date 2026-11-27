@@ -11,6 +11,9 @@ mod desk;
 mod wins;
 mod notif;
 mod autohide;
+mod wifi;
+mod bt;
+mod gpu;
 
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -220,6 +223,66 @@ async fn qs_set(kind: String, on: bool) -> bool {
 async fn bt_devices() -> Vec<Value> {
     devices::mta();
     quick::bt_devices()
+}
+#[tauri::command]
+async fn wifi_list(scan: bool) -> Value {
+    wifi::list(scan)
+}
+#[tauri::command]
+async fn wifi_connect(ssid: String, password: Option<String>) -> Result<(), String> {
+    wifi::connect(&ssid, password).map_err(String::from)
+}
+#[tauri::command]
+async fn wifi_disconnect() -> bool {
+    wifi::disconnect()
+}
+#[tauri::command]
+async fn wifi_forget(ssid: String) -> bool {
+    wifi::forget(&ssid)
+}
+#[tauri::command]
+async fn bt_connect(id: String, name: String, on: bool) -> bool {
+    devices::mta();
+    bt::connect(&id, &name, on)
+}
+#[tauri::command]
+async fn bt_scan() -> Vec<Value> {
+    devices::mta();
+    bt::scan()
+}
+#[tauri::command]
+async fn bt_pair(id: String) -> bool {
+    devices::mta();
+    bt::pair(&id)
+}
+#[tauri::command]
+async fn bt_unpair(id: String) -> bool {
+    devices::mta();
+    bt::unpair(&id)
+}
+#[tauri::command]
+async fn audio_outputs() -> Vec<devices::Output> {
+    devices::mta();
+    devices::outputs()
+}
+#[tauri::command]
+async fn audio_output_set(id: String) -> bool {
+    devices::mta();
+    devices::set_output(&id)
+}
+#[tauri::command]
+async fn audio_apps() -> Vec<devices::AppVol> {
+    devices::mta();
+    devices::app_volumes()
+}
+#[tauri::command]
+async fn audio_app_set(pid: u32, level: Option<f32>, muted: Option<bool>) {
+    devices::mta();
+    devices::set_app_volume(pid, level, muted)
+}
+#[tauri::command]
+async fn gpu_stats() -> Value {
+    gpu::stats()
 }
 #[tauri::command]
 fn storage_info() -> Value {
@@ -1113,7 +1176,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_windows, activate_window, close_window, kill_pid, jump_list, set_all_desktops, list_apps, launch, open_path, reveal, open_url,
-            press_start, monitors, toggle_desktop, tray_list, tray_click, qs_get, qs_set, bt_devices, storage_info, storage_scan, temps, lhm_start, set_geometry, set_hit, pass_click, set_autohide, set_taskbar, get_stats, get_top, media_get, media_cmd, radios_get, radio_set, volume_get,
+            press_start, monitors, toggle_desktop, tray_list, tray_click, qs_get, qs_set, bt_devices, wifi_list, wifi_connect, wifi_disconnect, wifi_forget, bt_connect, bt_scan, bt_pair, bt_unpair, audio_outputs, audio_output_set, audio_apps, audio_app_set, gpu_stats, storage_info, storage_scan, temps, lhm_start, set_geometry, set_hit, pass_click, set_autohide, set_taskbar, get_stats, get_top, media_get, media_cmd, radios_get, radio_set, volume_get,
             volume_set, screen_time, find_files, claude_usage, claude_cli_usage, claude_link_get, claude_link_set, codex_usage, antigravity_usage, http_text, load_config, save_config, notif_get,
             wallpaper_info, recycle_bin, autostart, lock_pc, set_live_glass, memory_low, set_hotkey, quit
         ])
