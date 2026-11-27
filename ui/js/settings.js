@@ -11,6 +11,24 @@ import { wallpaperUrl } from './glass.js';
 const ACCENTS = ['#4f8cff', '#9b6bff', '#ff5fa2', '#ff4d4f', '#ff8a1f', '#ffc21a', '#2fd27a', '#14c6c0', '#8b93a7'];
 const SLIDE = 170; // segmented thumb travel; redraws wait for it so they don't cut it short
 
+// ---------- rail tiles ----------
+// Phosphor Icons (fill weight, MIT, phosphoricons.com) as white glyphs on lit squircles, one colour per page.
+const TILES = {
+  look: ['#62a8ff', '#1f68ee', 'M200.77,53.89A103.27,103.27,0,0,0,128,24h-1.07A104,104,0,0,0,24,128c0,43,26.58,79.06,69.36,94.17A32,32,0,0,0,136,192a16,16,0,0,1,16-16h46.21a31.81,31.81,0,0,0,31.2-24.88,104.43,104.43,0,0,0,2.59-24A103.28,103.28,0,0,0,200.77,53.89ZM84,168a12,12,0,1,1,12-12A12,12,0,0,1,84,168Zm0-56a12,12,0,1,1,12-12A12,12,0,0,1,84,112Zm44-24a12,12,0,1,1,12-12A12,12,0,0,1,128,88Zm44,24a12,12,0,1,1,12-12A12,12,0,0,1,172,112Z'], // palette
+  dock: ['#b394ff', '#6b3be0', 'M232,64V176a24,24,0,0,1-24,24H48a24,24,0,0,1-24-24V64A24,24,0,0,1,48,40H208A24,24,0,0,1,232,64ZM160,216H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Z'], // monitor
+  widgets: ['#ff86bf', '#e2307c', 'M120,56v48a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40h48A16,16,0,0,1,120,56Zm80-16H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm-96,96H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm96,0H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Z'], // squares-four
+  system: ['#a4aab4', '#5b626d', 'M237.94,107.21a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A111.92,111.92,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.63a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z'], // gear-six
+  weather: ['#ffc94d', '#f5821a', 'M164,72a76.2,76.2,0,0,0-20.26,2.73,55.63,55.63,0,0,0-9.41-11.54l9.51-13.57a8,8,0,1,0-13.11-9.18L121.22,54A55.9,55.9,0,0,0,96,48c-.59,0-1.16,0-1.74,0L91.37,31.71a8,8,0,1,0-15.75,2.77L78.5,50.82A56.1,56.1,0,0,0,55.23,65.67L41.61,56.14a8,8,0,1,0-9.17,13.11L46,78.77A55.55,55.55,0,0,0,40,104c0,.57,0,1.15,0,1.72L23.71,108.6a8,8,0,0,0,1.38,15.88,8.24,8.24,0,0,0,1.39-.12l16.32-2.88a55.74,55.74,0,0,0,5.86,12.42A52,52,0,0,0,84,224h80a76,76,0,0,0,0-152ZM92.92,120.76a52.14,52.14,0,0,0-31,4.17,40,40,0,0,1,66.62-44.17A76.26,76.26,0,0,0,92.92,120.76Z'], // cloud-sun
+  cal: ['#ff7470', '#dd3236', 'M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM84,184a12,12,0,1,1,12-12A12,12,0,0,1,84,184Zm44,0a12,12,0,1,1,12-12A12,12,0,0,1,128,184Zm0-40a12,12,0,1,1,12-12A12,12,0,0,1,128,144Zm44,40a12,12,0,1,1,12-12A12,12,0,0,1,172,184Zm0-40a12,12,0,1,1,12-12A12,12,0,0,1,172,144Zm36-64H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z'], // calendar-dots
+  dev: ['#5fd0ff', '#168fd4', 'M172,120a44,44,0,1,1-44-44A44.05,44.05,0,0,1,172,120Zm60,8A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.09,88.09,0,0,0-91.47-87.93C77.43,41.89,39.87,81.12,40,128.25a87.65,87.65,0,0,0,22.24,58.16A79.71,79.71,0,0,1,84,165.1a4,4,0,0,1,4.83.32,59.83,59.83,0,0,0,78.28,0,4,4,0,0,1,4.83-.32,79.71,79.71,0,0,1,21.79,21.31A87.62,87.62,0,0,0,216,128Z'], // user-circle
+  about: ['#5b6a99', '#252e4f', 'M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm-4,48a12,12,0,1,1-12,12A12,12,0,0,1,124,72Zm12,112a16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40a8,8,0,0,1,0,16Z'], // info
+  update: ['#5fe07a', '#1fa448', 'M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm37.66,117.66-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L120,148.69V88a8,8,0,0,1,16,0v60.69l18.34-18.35a8,8,0,0,1,11.32,11.32Z'], // arrow-circle-down
+};
+const tile = (id, big) => {
+  const [a, b, d] = TILES[id] || TILES.about;
+  return `<span class="stile${big ? ' big' : ''}" style="--a:${a};--b:${b}" aria-hidden="true"><svg viewBox="0 0 256 256"><path fill="#fff" d="${d}"/></svg></span>`;
+};
+
 // ---------- building blocks ----------
 // `redraw` re-renders the page, so options that depend on another one appear and disappear.
 const sw = (key, onChange) => {
@@ -453,7 +471,7 @@ export function openSettings(tab = 'look') {
       body.classList.remove('enter');
       body.replaceChildren(hits.length
         ? h('div', { class: 'sres', role: 'listbox' }, ...hits.map((x, i) => h('button', { class: 'sr' + (i === sel ? ' sel' : ''), role: 'option', onclick: () => go(x) },
-          h('span', { class: 'sr-ic', html: icon(x.ic, 14) }),
+          h('span', { class: 'sr-ic', html: tile(x.id) }),
           h('span', { class: 'sr-t' }, h('b', {}, ...mark(x.label, t)), x.hint ? h('small', {}, x.hint) : null),
           h('span', { class: 'sr-p' }, x.label === x.page ? '' : x.page))))
         : h('p', { class: 'sempty' }, $t('Eşleşen ayar yok')));
@@ -482,6 +500,13 @@ export function openSettings(tab = 'look') {
     // type anywhere to search; Ctrl+F jumps to the box
     root.addEventListener('keydown', (e) => {
       if (e.target.closest('input, select, textarea')) return;
+      // 1–7 jump to the page with that number on the rail
+      const n = +e.key;
+      if (n >= 1 && n <= tabs.length && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        side.querySelector(`.cat[data-t="${tabs[n - 1][0]}"]`).click();
+        return;
+      }
       if ((e.ctrlKey && e.key.toLowerCase() === 'f') || (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && e.key !== ' ')) {
         if (e.ctrlKey) e.preventDefault();
         q.focus();
@@ -489,7 +514,31 @@ export function openSettings(tab = 'look') {
     });
 
     // ---------- rail ----------
-    for (const [id, l, ic] of tabs) side.append(h('button', { class: 'cat', 'data-t': id, onclick: () => { if (cur !== id || searching) { blip(); q.value = ''; show(id); } }, html: `${icon(ic, 15)}<span>${esc(l)}</span>` }));
+    // the update card leads the rail; the widget gallery sits with the dock pages, where it belongs
+    const upd = h('button', { class: 'supd' });
+    let checking = false;
+    const drawUpd = () => {
+      const l = update.latest;
+      upd.classList.toggle('new', !!l);
+      upd.title = l ? $t('İndir') : $t('Denetle');
+      upd.innerHTML = `${tile('update', true)}<span class="supd-t"><b>${l ? esc($t('Yeni sürüm')) : 'smartdock'}</b><small>${esc(l ? `${l.tag} · ${$t('İndir')}` : checking ? $t('Denetleniyor…') : `${update.current ? 'v' + update.current + ' · ' : ''}${$t('Denetle')}`)}</small></span>`;
+    };
+    upd.onclick = () => {
+      blip();
+      if (update.latest) return openUpdate();
+      if (checking) return;
+      checking = true;
+      drawUpd();
+      checkUpdate().finally(() => { checking = false; drawUpd(); });
+    };
+    drawUpd();
+    const cat = ([id, l]) => h('button', { class: 'cat', 'data-t': id, onclick: () => { if (cur !== id || searching) { blip(); q.value = ''; show(id); } }, html: `${tile(id)}<span>${esc(l)}</span>` });
+    const by = Object.fromEntries(tabs.map((x) => [x[0], x]));
+    side.append(upd,
+      h('div', { class: 'sgrp' }, cat(by.look), cat(by.dock),
+        h('button', { class: 'cat', onclick: () => { blip(); openPicker(); }, html: `${tile('widgets')}<span>${esc($t('Widget\'lar'))}</span>${icon('external', 12, 'ext')}` })),
+      h('div', { class: 'sgrp' }, cat(by.system), cat(by.weather), cat(by.cal)),
+      h('div', { class: 'sgrp' }, cat(by.dev), cat(by.about)));
     side.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       e.preventDefault();
@@ -499,10 +548,7 @@ export function openSettings(tab = 'look') {
       next.focus();
       next.click();
     });
-    const ver = h('div', { class: 'sver' }, update.current ? 'v' + update.current : '');
-    side.append(h('div', { class: 'grow' }),
-      h('button', { class: 'cat foot', onclick: () => openPicker(), html: `${icon('grid', 15)}<span>${esc($t('Widget\'lar'))}</span>` }), ver);
-    if (!update.current) window.__TAURI__.app.getVersion().then((v) => { update.current = v; ver.textContent = 'v' + v; if (cur === 'about') render(); });
+    if (!update.current) window.__TAURI__.app.getVersion().then((v) => { update.current = v; drawUpd(); if (cur === 'about') render(); });
 
     show(PAGES[tab] ? tab : 'look');
     invoke('monitors').then((m) => { monitors = m; index = null; if (cur === 'dock') render(); }).catch(() => {});
@@ -510,7 +556,7 @@ export function openSettings(tab = 'look') {
     // they redraw the page that shows them once the segmented thumb has slid
     let lt = 0;
     const later = () => { clearTimeout(lt); lt = setTimeout(render, SLIDE); };
-    const offs = [bus.on('update', () => cur === 'about' && render()), bus.on('hotkey-state', () => cur === 'system' && render()), ...['position', 'theme', 'size', 'accent', 'bar', 'clock24'].map((k) => bus.on('cfg:' + k, later))];
+    const offs = [bus.on('update', () => { drawUpd(); if (cur === 'about') render(); }), bus.on('hotkey-state', () => cur === 'system' && render()), ...['position', 'theme', 'size', 'accent', 'bar', 'clock24'].map((k) => bus.on('cfg:' + k, later))];
     return () => { clearTimeout(lt); flushFields(); offs.forEach((off) => off()); };
   });
 }

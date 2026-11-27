@@ -540,6 +540,61 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.15); }
 .scard-lbl { font-size: 11px; font-weight: 600; color: var(--fg2); }
 .scard.on .scard-lbl { color: var(--fg); }
 
+/* settings, macOS look: a rail of lit squircle tiles in groups, settings in inset cards */
+.sp { grid-template-columns: 206px minmax(0, 1fr); }
+.panel:has(> .sp) { border-radius: 14px; }
+.sp .sbrand-s { width: 206px; }
+.sp .side { padding: 10px; gap: 0; background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+.sp .sgrp { display: flex; flex-direction: column; gap: 1px; padding-top: 10px; }
+.sp .sgrp + .sgrp { margin-top: 2px; border-top: 1px solid var(--line); }
+.sp .cat { height: 30px; gap: 9px; padding: 0 8px; border-radius: 7px; font-weight: 500; color: var(--fg); }
+.sp .cat:hover { background: var(--tile); }
+.sp .cat:active { transform: none; background: var(--tile-hi); }
+.sp .cat.on { background: var(--accent); color: #fff; }
+.sp .cat.on::after { display: none; }
+.sp .cat .ext { margin-left: auto; color: var(--fg3); }
+.stile { width: 22px; height: 22px; border-radius: 6px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(var(--a), var(--b)); box-shadow: inset 0 .5px 0 rgba(255,255,255,.4), inset 0 0 0 .5px rgba(0,0,0,.2), 0 1px 1.5px rgba(0,0,0,.28); }
+.stile svg { width: 14px; height: 14px; }
+.stile.big { width: 32px; height: 32px; border-radius: 8px; }
+.stile.big svg { width: 19px; height: 19px; }
+.cat.on .stile { box-shadow: inset 0 .5px 0 rgba(255,255,255,.4), 0 0 0 1px rgba(255,255,255,.35); }
+/* update card at the head of the rail; a dot on the tile when a new version waits */
+.supd { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px; border-radius: 10px; background: var(--tile); text-align: left; transition: background .12s, transform .1s var(--ease); }
+.supd:hover { background: var(--tile-hi); }
+.supd:active { transform: scale(.98); }
+.supd .stile { position: relative; }
+.supd.new .stile::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 2px var(--panel); }
+.supd-t { display: flex; flex-direction: column; min-width: 0; }
+.supd-t b { font-size: 12.5px; font-weight: 650; }
+.supd-t small { font-size: 11px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.supd.new small { color: var(--accent); }
+/* groups: a caption over a rounded card, rows split by inset hairlines */
+.sp .sgroup { margin-top: 16px; }
+.sp .sgh { font-size: 12px; font-weight: 600; color: var(--fg2); padding-left: 10px; margin-bottom: 6px; }
+.sp .sgh::after { display: none; }
+.sp .sgroup > :is(.srow, .list, .sintro, .sempty) { background: var(--tile); padding-inline: 12px; }
+.sp .sgroup > :is(.srow, .list, .sintro, .sempty):first-child, .sp .sgroup > .sgh + * { border-top-left-radius: 10px; border-top-right-radius: 10px; }
+.sp .sgroup > :last-child { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
+.sp .sgroup > .srow + .srow { border-top: 0; background: linear-gradient(var(--line), var(--line)) 12px 0 / calc(100% - 12px) 1px no-repeat, var(--tile); }
+.sp .sgroup > .srow.live { background: var(--panel); margin-inline: 0; }
+.sp .sgroup > :is(.sintro, .sempty) { margin: 0; padding-block: 12px; }
+.sp .sgroup > .list { padding: 4px; }
+.sp .spv { border-radius: 10px; }
+.sp .scard-box { border-radius: 8px; }
+.sp .scard.on .scard-box { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3.5px var(--accent); }
+/* controls: pill switch with a white knob, round white slider thumb, accent dots with a white centre */
+.sp .sw { width: 32px; height: 19px; border-radius: 10px; background: var(--tile-hi); box-shadow: inset 0 0 0 .5px var(--line); }
+.sp .sw::after { top: 2px; left: 2px; width: 15px; height: 15px; border: 0; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.35), 0 0 0 .5px rgba(0,0,0,.12); }
+.sp .sw:hover { box-shadow: inset 0 0 0 .5px var(--fg3); }
+.sp .sw.on { background: var(--accent); box-shadow: none; }
+.sp .sw.on::after { transform: translateX(13px); }
+.sp .sw.on:active::after { transform: translateX(13px) scale(.9); }
+.sp input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; border: 0; background: #fff; box-shadow: 0 .5px 2px rgba(0,0,0,.45), 0 0 0 .5px rgba(0,0,0,.15); }
+.sp .swatches i { position: relative; background-image: linear-gradient(rgba(255,255,255,.22), transparent 70%); box-shadow: inset 0 0 0 .5px rgba(0,0,0,.2); }
+.sp .swatches i.on { box-shadow: inset 0 0 0 .5px rgba(0,0,0,.2); }
+.sp .swatches i.on::after { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #fff; }
+.sp .sr-ic { width: auto; height: auto; background: none; }
+
 /* live window preview cards on hover */
 .panel.winprev { padding: 10px; display: flex; gap: 10px; }
 .wcard {

@@ -202,6 +202,7 @@ export default {
   'Arayüzü yenile': 'Reload UI',
   'İndir': 'Download',
   'Denetle': 'Check',
+  'Denetleniyor…': 'Checking…',
   'Otomatik denetle': 'Check automatically',
   'Widget ara': 'Search widgets',
   'Kapat': 'Close',
